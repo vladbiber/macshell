@@ -5,6 +5,13 @@
   with a real-time <b>Liquid Glass</b> refraction shader, and a lock screen, <b>MacLock</b>.
 </p>
 
+> **This is the Glue Linux packaging of MacShell.** MacShell was made by
+> [Rickky (@0-ss)](https://github.com/0-ss) with [vSuol (@vsoultann)](https://github.com/vsoultann);
+> the original lives at <https://github.com/0-ss/MacShell> and is MIT licensed.
+> Glue runs it unchanged in spirit on **gluemac** and **gluewc**, which speak
+> Hyprland's IPC for it. The Glue changes are listed in [`glue/CHANGES.md`](glue/CHANGES.md);
+> report bugs in them to Glue, not upstream.
+
 <p align="center">
   <img width="854" alt="MacShell quick showcase" src="https://github.com/user-attachments/assets/b75da31c-73a3-4830-af70-2e0b74f85bf0" />
   <br>

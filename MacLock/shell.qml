@@ -6,7 +6,7 @@
 //
 // Runs as its own process on purpose: a MacShell crash can never take the lock with it, and maclock.sh
 // relaunches this one if it dies (Hyprland's misc:allow_session_lock_restore lets the new instance take over).
-// Password check: PAM, /etc/pam.d/hyprlock (same stack hyprlock uses).
+// Password check: PAM, /etc/pam.d/maclock (Glue; upstream uses hyprlock's stack).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -143,7 +143,8 @@ ShellRoot {
     PamContext {
         id: pam
         configDirectory: "/etc/pam.d"
-        config: "hyprlock"
+        // Glue ships /etc/pam.d/maclock, so hyprlock is not needed
+        config: "maclock"
         onPamMessage: {
             if (this.responseRequired) this.respond(lockState.pass);
         }

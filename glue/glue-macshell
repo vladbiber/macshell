@@ -1,0 +1,90 @@
+#!/bin/sh
+# glue-macshell: MacShell on gluemac or gluewc.
+#   glue-macshell            start the shell (the compositor's autostart runs this)
+#   glue-macshell lock       lock the screen with MacLock
+#   glue-macshell ipc T F..  qs -c MacShell ipc call T F..
+# Both compositors serve Hyprland's IPC at $XDG_RUNTIME_DIR/hypr/<name>-<display>;
+# the signature goes to MacShell only, so nothing else takes them for Hyprland.
+
+run="${XDG_RUNTIME_DIR:-/tmp}"
+disp="${WAYLAND_DISPLAY:-wayland-0}"
+comp=
+# only the shell waits for a compositor that is still starting
+tries=1
+[ "${1:-shell}" = shell ] && tries=100
+i=0
+while [ -z "$comp" ] && [ "$i" -lt "$tries" ]; do
+	for c in gluemac gluewc; do
+		[ -S "$run/hypr/$c-$disp/.socket.sock" ] && comp=$c && break
+	done
+	[ -n "$comp" ] || sleep 0.1
+	i=$((i + 1))
+done
+if [ -z "$comp" ]; then
+	echo "glue-macshell: no gluemac or gluewc on $disp" >&2
+	exit 1
+fi
+HYPRLAND_INSTANCE_SIGNATURE="$comp-$disp"
+MACSHELL_MANAGED=1
+MACSHELL_SCRIPTS=/usr/lib/macshell/scripts
+MACSHELL_LOCK_CMD="glue-macshell lock"
+MACSHELL_COMPOSITOR=$comp
+PATH="/usr/lib/$comp/bin:$PATH"
+export HYPRLAND_INSTANCE_SIGNATURE MACSHELL_MANAGED MACSHELL_SCRIPTS MACSHELL_LOCK_CMD MACSHELL_COMPOSITOR PATH
+
+WALLPAPER=/usr/share/backgrounds/glue/glue-mac.jpg
+
+wallpaper() {
+	# the picker's default folder starts with Glue's wallpapers in it
+	pics="${XDG_PICTURES_DIR:-$HOME/Pictures}/Wallpapers"
+	if [ ! -e "$pics" ] && mkdir -p "$pics"; then
+		for w in /usr/share/backgrounds/glue/*; do
+			[ -f "$w" ] && ln -s "$w" "$pics/"
+		done
+	fi
+	command -v awww >/dev/null 2>&1 || return 0
+	if ! awww query >/dev/null 2>&1; then
+		setsid awww-daemon >/dev/null 2>&1 < /dev/null &
+		i=0
+		while ! awww query >/dev/null 2>&1 && [ "$i" -lt 50 ]; do
+			sleep 0.1
+			i=$((i + 1))
+		done
+	fi
+	# awww brings the last picture back by itself; a first login gets Glue's
+	if ! awww query 2>/dev/null | grep -q 'image:' && [ -r "$WALLPAPER" ]; then
+		awww img "$WALLPAPER" --transition-type none >/dev/null 2>&1
+	fi
+}
+
+case "${1:-shell}" in
+lock)
+	exec sh /etc/xdg/quickshell/MacLock/lock-via-ipc.sh
+	;;
+ipc)
+	shift
+	exec qs -c MacShell ipc call "$@"
+	;;
+shell)
+	;;
+*)
+	echo "usage: glue-macshell [shell|lock|ipc TARGET FUNCTION...]" >&2
+	exit 2
+	;;
+esac
+
+exec 9>"$run/glue-macshell-$disp.lock"
+flock -n 9 || exit 0
+
+wallpaper
+log="${XDG_STATE_HOME:-$HOME/.local/state}/macshell.log"
+# restarted if it dies, but not forever when it cannot start at all
+fails=0
+while [ "$fails" -lt 5 ]; do
+	start=$(date +%s)
+	qs -c MacShell > "$log" 2>&1
+	[ $(($(date +%s) - start)) -gt 30 ] && fails=0 || fails=$((fails + 1))
+	# the compositor is gone: so is the session
+	[ -S "$run/$disp" ] || exit 0
+	sleep 1
+done

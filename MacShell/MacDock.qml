@@ -166,10 +166,9 @@ Scope {
     ]
     property color accent: "#0A84FF"     // menu highlight (macOS blue)
     readonly property var defaultPinned: [
-        "org.gnome.Nautilus", "org.kde.dolphin", "thunar",
-        "firefox", "zen", "chromium", "google-chrome",
-        "kitty", "com.mitchellh.ghostty", "Alacritty", "foot",
-        "code", "discord", "spotify", "steam", "obsidian"
+        "org.gnome.Nautilus", "firefox", "zen", "chromium", "google-chrome",
+        "Alacritty", "org.glue.Apps", "code", "discord", "spotify", "steam",
+        "org.vinegarhq.Sober", "obsidian"
     ]   // used until you change pins from the dock; unknown ids are skipped
     property var pinned: defaultPinned
     // ──────────────────────────────────
@@ -1224,7 +1223,7 @@ Scope {
                 }
                 SLabel {
                     t: pal
-                    text: "If you turn both off, reopen this window with:  qs -c macbar ipc call settings open"
+                    text: "If you turn both off, reopen this window with:  " + (Quickshell.env("MACSHELL_MANAGED") === "1" ? "glue-macshell ipc settings open" : "qs -c MacShell ipc call settings open")
                 }
 
                 SLabel { t: pal; header: true; text: "Desktop Widgets" }
@@ -1458,14 +1457,14 @@ Scope {
                     SRow {
                         t: pal
                         title: "Menu Bar logo"
-                        subtitle: "Choose the Arch mark, Apple logo, or a custom image"
+                        subtitle: "Choose the Glue mark, the Arch mark, or a custom image"
                         SSegmented {
                             t: pal
-                            model: ["Arch", "Apple", "Custom"]
+                            model: ["Glue", "Arch", "Custom"]
                             segWidth: 68
-                            current: !root.bar || root.bar.barLogoMode === "arch" ? 0 : (root.bar.barLogoMode === "apple" ? 1 : 2)
+                            current: !root.bar ? 0 : Math.max(0, ["glue", "arch", "custom"].indexOf(root.bar.barLogoMode))
                             onPicked: i => {
-                                if (root.bar) root.bar.barLogoMode = ["arch", "apple", "custom"][i];
+                                if (root.bar) root.bar.barLogoMode = ["glue", "arch", "custom"][i];
                             }
                         }
                     }
@@ -2956,7 +2955,7 @@ Scope {
                             Quickshell.execDetached(["sh", "-c", "MACLOCK_PREVIEW=1 MACLOCK_CLOCK=\"$1\" timeout 6 qs -c MacLock >/dev/null 2>&1", "sh", cfg]);
                         }
                     }
-                    SButton { t: pal; text: "Lock Screen Now"; onClicked: { prefsWindow.visible = false; Quickshell.execDetached(["loginctl", "lock-session"]); } }
+                    SButton { t: pal; text: "Lock Screen Now"; onClicked: { prefsWindow.visible = false; Quickshell.execDetached(["sh", "-c", Quickshell.env("MACSHELL_LOCK_CMD") || "loginctl lock-session"]); } }
                 }
             }
         }
@@ -3363,6 +3362,8 @@ Scope {
 
                 SCard {
                     t: pal
+                    // a distribution package brings the dependencies itself
+                    visible: Quickshell.env("MACSHELL_MANAGED") !== "1"
                     SRow {
                         t: pal
                         title: "Install dependencies"
@@ -3372,7 +3373,7 @@ Scope {
                             text: "Install\u2026"
                             onClicked: {
                                 var inst = Quickshell.env("HOME") + "/.local/share/macshell/install.sh";
-                                var term = root.bar ? root.bar.terminal : "kitty";
+                                var term = root.bar ? root.bar.terminal : "alacritty";
                                 Quickshell.execDetached(["sh", "-c", term + " -e sh -c '\"$0\" --deps-only; echo; echo Press Enter to close; read x'", inst]);
                             }
                         }
@@ -3451,6 +3452,15 @@ Scope {
                     text: "Designed by Apple in California.\nRebuilt on Linux by two people who could not afford the Mac."
                     color: pal.text3; font.family: pal.fam; font.pixelSize: 11
                 }
+                Text {
+                    visible: Quickshell.env("MACSHELL_MANAGED") === "1"
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    topPadding: 6
+                    wrapMode: Text.WordWrap
+                    text: "Packaged for Glue Linux, running on the gluemac compositor. MacShell itself is the work of Rickky and vSuol above (MIT)."
+                    color: pal.text3; font.family: pal.fam; font.pixelSize: 11
+                }
 
                 // (keep scrolling…)
                 Item { width: 1; height: 900 }
@@ -3463,7 +3473,7 @@ Scope {
                         Image {
                             anchors.horizontalCenter: parent.horizontalCenter; y: 16
                             width: 36; height: 36
-                            source: Qt.resolvedUrl(pal.dark ? "apple-logo-white.svg" : "apple-logo-black.svg")
+                            source: Qt.resolvedUrl(pal.dark ? "glue-logo-white.svg" : "glue-logo-black.svg")
                             sourceSize: Qt.size(72, 72); fillMode: Image.PreserveAspectFit; smooth: true
                         }
                         Text {

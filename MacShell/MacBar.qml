@@ -101,7 +101,7 @@ Scope {
     property string fontFamily: "Inter Variable"
     onFontFamilyChanged: if (fontFamily === "Inter" || fontFamily === "Inter Display") fontFamily = "Inter Variable"
     property int barHeight: 28
-    property string barLogoMode: "arch"       // "arch", "apple", or "custom"
+    property string barLogoMode: "glue"       // "glue", "arch", "apple", or "custom"
     property string barCustomLogoPath: ""     // absolute path, ~/path, or file URL for the custom menu-bar logo
     // The bar-size slider scales its widget groups while the left/right groups stay pinned to their corners.
     readonly property real barWidgetScale: Math.max(0.8, Math.min(1.55, barHeight / 28))
@@ -207,9 +207,9 @@ Scope {
     property bool showTray: true
     property bool showSearch: true
     property bool weekStartsMonday: false
-    property string terminal: "kitty"
+    property string terminal: "alacritty"
     property string launcher: ""              // "" = built-in Spotlight; set a command (rofi, fuzzel, ...) to use an external launcher instead
-    property string filesCmd: "xdg-open \"$HOME\""
+    property string filesCmd: "nautilus --new-window \"$HOME\""
     property string clipboardCmd: "cliphist list | (fuzzel --dmenu || wofi --dmenu || rofi -dmenu) | cliphist decode | wl-copy"
     property var appUsage: ({})               // launch counts, feeds the "Suggestions" row in Spotlight
     property bool clipHistory: true           // keep a clipboard history for Spotlight → Clipboard (needs wl-clipboard + cliphist)
@@ -2499,12 +2499,12 @@ Scope {
     }
     function actionItems(q) {
         var all = [
-            { title: "Lock Screen", glyph: "lock", run: function () { sh("loginctl lock-session"); } },
-            { title: "Sleep", glyph: "moon", run: function () { sh("systemctl suspend"); } },
+            { title: "Lock Screen", glyph: "lock", run: function () { sh(root.lockCmd); } },
+            { title: "Sleep", glyph: "moon", run: function () { sh("loginctl suspend"); } },
             { title: "System Settings\u2026", glyph: "gear", run: function () { openSettings(); } },
             { title: "Log Out", glyph: "logout", confirm: true, run: function () { root.logOut(); } },
-            { title: "Restart", glyph: "restart", confirm: true, run: function () { sh("systemctl reboot"); } },
-            { title: "Shut Down", glyph: "power", confirm: true, run: function () { sh("systemctl poweroff"); } }
+            { title: "Restart", glyph: "restart", confirm: true, run: function () { sh("loginctl reboot"); } },
+            { title: "Shut Down", glyph: "power", confirm: true, run: function () { sh("loginctl poweroff"); } }
         ];
         var s = (q || "").trim().toLowerCase(), out = [];
         for (var i = 0; i < all.length; i++) {
@@ -2571,11 +2571,11 @@ Scope {
             m.push(msep());
             m.push(mi("System Settings\u2026", "", function () { root.openSettings(); }));
             m.push(msep());
-            m.push(mi("Lock Screen", "", function () { sh("loginctl lock-session"); }));
-            m.push(mi("Sleep", "", function () { sh("systemctl suspend"); }));
+            m.push(mi("Lock Screen", "", function () { sh(root.lockCmd); }));
+            m.push(mi("Sleep", "", function () { sh("loginctl suspend"); }));
             m.push(msep());
-            m.push(mc("Restart\u2026", function () { sh("systemctl reboot"); }));
-            m.push(mc("Shut Down\u2026", function () { sh("systemctl poweroff"); }));
+            m.push(mc("Restart\u2026", function () { sh("loginctl reboot"); }));
+            m.push(mc("Shut Down\u2026", function () { sh("loginctl poweroff"); }));
             m.push(msep());
             m.push(mc("Log Out\u2026", function () { root.logOut(); }));
         } else {
@@ -2933,7 +2933,11 @@ Scope {
     // output → a window is FULLSCREEN there: only then do the desktop widgets stop drawing (a focused or tiled
     // window that merely covers the desktop keeps them alive)
     property var screenFullscreen: ({})
-    readonly property string wallPauseScript: Quickshell.env("HOME") + "/.config/hypr-macshell/scripts/macshell-wallpause.sh"
+    // loginctl lock-session needs something listening for it; a package can name the locker itself
+    readonly property string lockCmd: Quickshell.env("MACSHELL_LOCK_CMD") || "loginctl lock-session"
+    // a distribution package puts the helper scripts in MACSHELL_SCRIPTS
+    readonly property string scriptDir: Quickshell.env("MACSHELL_SCRIPTS") || (Quickshell.env("HOME") + "/.config/hypr-macshell/scripts")
+    readonly property string wallPauseScript: root.scriptDir + "/macshell-wallpause.sh"
     Process {
         id: coverProbe
         command: ["sh", "-c", "printf '{\"m\":'; hyprctl -j monitors; printf ',\"c\":'; hyprctl -j clients; printf '}'"]
@@ -2979,7 +2983,7 @@ Scope {
     }
 
     // ═════════════ GAME MODE ═════════════
-    readonly property string gamingScript: Quickshell.env("HOME") + "/.config/hypr-macshell/scripts/macshell-gaming.sh"
+    readonly property string gamingScript: root.scriptDir + "/macshell-gaming.sh"
     property bool gamingApplied: false
     onGamingChanged: gamingApply.restart()
     Timer {
@@ -3046,7 +3050,7 @@ Scope {
         barStyle = "liquid"; use24h = true; showDate = true; showSeconds = false; showBatteryPercent = true;
         showTray = true; showSearch = true;
         spotlightEnabled = true; ccEnabled = true; notificationsEnabled = true; clockAppEnabled = true; ccStyle = "tiles";
-        barLogoMode = "arch"; barCustomLogoPath = "";
+        barLogoMode = "glue"; barCustomLogoPath = "";
         barWidgets = ["appleMenu", "appMenus", "workspaces", "volume", "keyboard", "notifications", "wifi", "bluetooth", "privacy", "controlCenter", "clock"];
         ccControls = ccDefault.slice();
     }
@@ -3381,7 +3385,7 @@ Scope {
             '  [ -s "$t" ] && printf "T:%s\\t%s\\n" "$v" "$t"',
             // animated preview + optimized playback copy: built once, in the background, at low priority
             '  w="${t%.jpg}.webp"',
-            '  if [ -s "$w" ]; then printf "P:%s\\t%s\\n" "$v" "$w"; else setsid nice -n 15 "$HOME/.config/hypr-macshell/scripts/macshell-setwall.sh" --prepare "$v" >/dev/null 2>&1 </dev/null & fi',
+            '  if [ -s "$w" ]; then printf "P:%s\\t%s\\n" "$v" "$w"; else setsid nice -n 15 "${MACSHELL_SCRIPTS:-$HOME/.config/hypr-macshell/scripts}/macshell-setwall.sh" --prepare "$v" >/dev/null 2>&1 </dev/null & fi',
             'done; fi',
             'for f in "$@"; do [ -f "$f" ] && echo "F:$f"; done',
             'exit 0'
@@ -3401,13 +3405,13 @@ Scope {
         root.wpRebuild();
     }
     function wpIsVideo(p) { return /[.](mp4|webm|mkv|mov|m4v)$/i.test(p || ""); }
-    readonly property string setwallScript: Quickshell.env("HOME") + "/.config/hypr-macshell/scripts/macshell-setwall.sh"
+    readonly property string setwallScript: root.scriptDir + "/macshell-setwall.sh"
     // ── light / dark wallpaper pairs (macOS "Automatic / Light / Dark / Dynamic") ──
     property string wallpaperAppearance: "auto"     // auto (follows Dark Mode) | light | dark | dynamic (time of day)
     property string wpPairLight: ""
     property string wpPairDark: ""
     readonly property bool wpHasPair: wpPairLight !== "" && wpPairDark !== ""
-    readonly property string dynwallScript: Quickshell.env("HOME") + "/.config/hypr-macshell/scripts/macshell-dynwall.sh"
+    readonly property string dynwallScript: root.scriptDir + "/macshell-dynwall.sh"
     // "<name>-Light.ext" ↔ "<name>-Dark.ext" in the same folder (from the folder scan)
     function wpPairOf(path) {
         var m = /^(.*[-_ ])(light|dark)(\.[a-z0-9]+)$/i.exec(path || "");
@@ -4344,11 +4348,11 @@ Scope {
                                     color: bpal.fg
                                 }
                                 Image {
-                                    visible: mt.modelData.id === "apple" && root.barLogoMode === "apple"
+                                    visible: mt.modelData.id === "apple" && (root.barLogoMode === "glue" || root.barLogoMode === "apple")
                                     anchors.centerIn: parent
-                                    width: 15; height: 15
-                                    source: root.darkMode ? Qt.resolvedUrl("apple-logo-white.svg") : Qt.resolvedUrl("apple-logo-black.svg")
-                                    sourceSize: Qt.size(128, 160)
+                                    width: 16; height: 16
+                                    source: root.darkMode ? Qt.resolvedUrl("glue-logo-white.svg") : Qt.resolvedUrl("glue-logo-black.svg")
+                                    sourceSize: Qt.size(64, 64)
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
                                     mipmap: true
@@ -6347,27 +6351,30 @@ Scope {
                     Component {
                         id: cBt
                         CCTile {
+                            id: btTile
+                            // wide (2x1) tiles get the label; `slot` lives in the delegate, out of reach here
+                            readonly property bool wide: width > height * 1.5
                             t: pal; gx: ccg
                             CCBtn {
                                 t: pal; gx: ccg
-                                x: slot.w > 1 ? 12 : (parent.width - width) / 2
+                                x: btTile.wide ? 12 : (parent.width - width) / 2
                                 anchors.verticalCenter: parent.verticalCenter
                                 kind: "bluetooth"; on: root.btOn
                                 onClicked: root.toggleBt()
                             }
                             MouseArea {
-                                visible: slot.w > 1
+                                visible: btTile.wide
                                 x: 56; width: parent.width - 56; height: parent.height
                                 onClicked: ui.openPop("bt", ui.width)
                             }
                             Glyph {
-                                visible: slot.w > 1
+                                visible: btTile.wide
                                 x: parent.width - 22; anchors.verticalCenter: parent.verticalCenter
                                 width: 12; height: 12
                                 kind: "chevR"; color: pal.fg2
                             }
                             Column {
-                                visible: slot.w > 1
+                                visible: btTile.wide
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 62 - 24
                                 spacing: 1
@@ -7737,7 +7744,7 @@ Scope {
                                 onClicked: {
                                     if (modelData.id === "apps") ui.spSetMode(ui.spMode === "apps" ? "home" : "apps");
                                     else if (modelData.id === "actions") ui.spSetMode(ui.spMode === "actions" ? "home" : "actions");
-                                    else if (modelData.id === "files") { ui.pop = ""; root.sh("dolphin \"$HOME\""); }
+                                    else if (modelData.id === "files") { ui.pop = ""; root.sh(root.filesCmd); }
                                     else if (modelData.id === "clip") ui.spSetMode(ui.spMode === "clip" ? "home" : "clip");
                                     else ui.spSetMode(ui.spMode === "emoji" ? "home" : "emoji");
                                 }

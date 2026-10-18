@@ -1,0 +1,3 @@
+#%PAM-1.0
+# MacLock (the MacShell lock screen) checks the password with this stack
+auth       include      login
