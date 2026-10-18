@@ -214,27 +214,32 @@ ShellRoot {
             onTriggered: sharedHub.ipcPoll()
         }
 
-        // wallpaper the glass refracts (Noctalia settings.toml -> awww/swww/hyprpaper)
+        // wallpaper the glass refracts: the running daemon (awww/swww, per output)
+        // first, Noctalia's settings only when no daemon answers, then hyprpaper
         Process {
             id: wpProc
             command: ["sh", "-c",
                 ""
                 + "out=\"\"\n"
-                + "st=\"${XDG_STATE_HOME:-$HOME/.local/state}/noctalia\"; ns=\"${NOCTALIA_STATE_HOME:-/nonexistent}\"\n"
-                + "for f in \"$ns/settings.toml\" \"$st/settings.toml\" \"$HOME/.config/noctalia/settings.toml\" \"$HOME/.config/noctalia/config.toml\"; do\n"
-                + "  [ -f \"$f\" ] || continue\n"
-                + "  out=\"$out$(awk '\n"
-                + "    /^[ \\t]*\\[\\[/ { sec = \"\"; next }\n"
-                + "    /^[ \\t]*\\[/ { sec = $0; gsub(/[\\[\\] \\t\"]/, \"\", sec); next }\n"
-                + "    sec ~ /^wallpaper\\.(default|last|monitors\\..+)$/ && /^[ \\t]*path[ \\t]*=/ {\n"
-                + "      v = $0; sub(/^[^=]*=[ \\t]*\"/, \"\", v); sub(/\".*$/, \"\", v); print sec \"\\t\" v\n"
-                + "    }' \"$f\")\n"
+                + "q=$(awww query 2>/dev/null); [ -n \"$q\" ] || q=$(swww query 2>/dev/null)\n"
+                + "if [ -n \"$q\" ]; then\n"
+                + "  out=$(printf '%s\\n' \"$q\" | awk -F'image: ' 'NF > 1 { n = $1; sub(/^[: ]*/, \"\", n); sub(/:.*/, \"\", n); print \"wallpaper.monitors.\" n \"\\t\" $2; if (d == \"\") d = $2 } END { if (d != \"\") print \"wallpaper.default\\t\" d }')\n"
+                + "fi\n"
+                + "if [ -z \"$out\" ]; then\n"
+                + "  st=\"${XDG_STATE_HOME:-$HOME/.local/state}/noctalia\"; ns=\"${NOCTALIA_STATE_HOME:-/nonexistent}\"\n"
+                + "  for f in \"$ns/settings.toml\" \"$st/settings.toml\" \"$HOME/.config/noctalia/settings.toml\" \"$HOME/.config/noctalia/config.toml\"; do\n"
+                + "    [ -f \"$f\" ] || continue\n"
+                + "    out=\"$out$(awk '\n"
+                + "      /^[ \\t]*\\[\\[/ { sec = \"\"; next }\n"
+                + "      /^[ \\t]*\\[/ { sec = $0; gsub(/[\\[\\] \\t\"]/, \"\", sec); next }\n"
+                + "      sec ~ /^wallpaper\\.(default|last|monitors\\..+)$/ && /^[ \\t]*path[ \\t]*=/ {\n"
+                + "        v = $0; sub(/^[^=]*=[ \\t]*\"/, \"\", v); sub(/\".*$/, \"\", v); print sec \"\\t\" v\n"
+                + "      }' \"$f\")\n"
                 + "\"\n"
-                + "done\n"
+                + "  done\n"
+                + "fi\n"
                 + "if [ -z \"$(printf %s \"$out\" | tr -d ' \\t\\n')\" ]; then\n"
-                + "  p=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
-                + "  [ -z \"$p\" ] && p=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1)\n"
-                + "  [ -z \"$p\" ] && p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | sed 's/.*= //')\n"
+                + "  p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | sed 's/.*= //')\n"
                 + "  if [ -z \"$p\" ]; then f=\"$HOME/.config/hypr/hyprpaper.conf\"\n"
                 + "    [ -f \"$f\" ] && p=$(grep -E '^[[:space:]]*(path|wallpaper)[[:space:]]*=' \"$f\" | head -n1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^[^,\\/]*,//')\n"
                 + "  fi\n"
