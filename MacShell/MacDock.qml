@@ -149,6 +149,7 @@ Scope {
     // "always" = always auto-hide, "never" = always visible and reserves space
     property string hideMode: "smart"
     property bool showTrash: true
+    property bool showApps: true         // Applications (Launchpad) next to the first pinned app
     property string fontFamily: "Inter Variable"  // "Inter" (one variable font file; falls back to the system font if missing)
     onFontFamilyChanged: if (fontFamily === "Inter" || fontFamily === "Inter Display") fontFamily = "Inter Variable"
     property bool magnificationEnabled: true
@@ -2179,6 +2180,11 @@ Scope {
                         title: "Show Trash in the Dock"
                         SSwitch { t: pal; checked: root.showTrash; onToggled: v => root.showTrash = v }
                     }
+                    SRow {
+                        t: pal
+                        title: "Show Applications in the Dock"
+                        SSwitch { t: pal; checked: root.showApps; onToggled: v => root.showApps = v }
+                    }
                 }
             }
         }
@@ -3575,16 +3581,17 @@ Scope {
         spacing = 6; margin = 6; cornerRadius = 18;
         darkMode = true; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; accent = "#0a84ff"; fontFamily = "Inter Variable";
         hideMode = "smart"; hideDelay = 450; monitor = "";
-        showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true;
+        showTrash = true; showApps = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true;
     }
 
     // ── settings persistence (~/.config/macdock/settings.json) ──
     readonly property string settingsSig: [dockEnabled, settingsEnabled, iconSize, magnification, magnificationEnabled, spacing, margin,
         cornerRadius, darkMode, glassOpacity, glassBlur, glassLiquid, dockStyle, wallpaperPath, String(accent), fontFamily, hideMode, hideDelay, monitor,
-        showTrash, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture].join("|")
+        showTrash, showApps, showLabels, showIndicators, bounceOnLaunch, showThumbs, windowCapture].join("|")
     property bool settingsReady: false
     onSettingsSigChanged: if (settingsReady) saveTimer.restart()
     onShowTrashChanged: { rebuild(); if (showTrash) trashCheck(); }
+    onShowAppsChanged: rebuild()
     onShowThumbsChanged: rebuild()
     onWindowCaptureChanged: rebuild()
 
@@ -3596,7 +3603,7 @@ Scope {
             glassRim: glassRim, glassGrain: glassGrain, glassLiquid: glassLiquid, glassBlur: glassBlur,
             accent: String(accent), fontFamily: fontFamily,
             hideMode: hideMode, hideDelay: hideDelay, monitor: monitor,
-            showTrash: showTrash, showLabels: showLabels, showIndicators: showIndicators,
+            showTrash: showTrash, showApps: showApps, showLabels: showLabels, showIndicators: showIndicators,
             bounceOnLaunch: bounceOnLaunch, showThumbs: showThumbs, windowCapture: windowCapture
         };
         settingsStore.setText(JSON.stringify(o, null, 2));
@@ -3606,7 +3613,7 @@ Scope {
         if (!o || typeof o !== "object") return;
         var keys = ["dockEnabled", "settingsEnabled", "iconSize", "magnification", "magnificationEnabled", "spacing", "margin", "cornerRadius",
                     "darkMode", "glassOpacity", "dockStyle", "wallpaperPath", "glassDebug", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "accent", "fontFamily", "hideMode", "hideDelay", "monitor",
-                    "showTrash", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture"];
+                    "showTrash", "showApps", "showLabels", "showIndicators", "bounceOnLaunch", "showThumbs", "windowCapture"];
         for (var i = 0; i < keys.length; i++) {
             if (o[keys[i]] === undefined) continue;
             try { root[keys[i]] = o[keys[i]]; } catch (err) { }
@@ -3660,6 +3667,7 @@ Scope {
     }
     // icon of a dock cell; the Trash switches to the "full" icon while there is something in it
     function cellIconSrc(it) {
+        if (it && it.special === "apps") return Qt.resolvedUrl("assets/launchpad.svg");
         if (it && it.special === "trash" && trashFull) {
             var p = Quickshell.iconPath("user-trash-full", true);
             if (p !== "") return p;
@@ -3737,6 +3745,7 @@ Scope {
 
     function activate(item, forceNew) {
         if (item.kind === "win") { if (item.tl) item.tl.activate(); return; }
+        if (item.special === "apps") { if (bar) bar.spotOpen("apps"); return; }
         if (item.special === "trash") {
             // the file manager first (Dolphin understands trash:/ natively); xdg-open only as the last resort
             Quickshell.execDetached(["sh", "-c",
@@ -3818,6 +3827,12 @@ Scope {
             m.push({ kind: "item", label: "Settings\u2026", run: function() { root.openPrefs(); } });
             return m;
         }
+        if (item.special === "apps") {
+            m.push({ kind: "item", label: "Open", run: function () { activate(item, false); } });
+            m.push({ kind: "sep" });
+            m.push({ kind: "item", label: "Settings\u2026", run: function() { root.openPrefs(); } });
+            return m;
+        }
         if (item.special === "trash") {
             m.push({ kind: "item", label: "Open", run: function () { activate(item, false); } });
             m.push({ kind: "item", label: "Empty Trash", confirm: true, disabled: !trashFull, run: function () { root.emptyTrash(); } });
@@ -3884,6 +3899,9 @@ Scope {
             list.push({ kind: "app", key: ek, appId: e.id, name: e.name, icon: e.icon, entry: e,
                         running: !!running[ek], pinned: true });
         }
+        if (showApps)
+            list.splice(Math.min(1, list.length), 0, { kind: "app", key: "__apps", name: "Applications", icon: "",
+                        entry: null, running: false, pinned: true, special: "apps" });
 
         var extras = [];
         for (var r = 0; r < runOrder.length; r++) if (!seen[runOrder[r].key]) extras.push(runOrder[r]);
