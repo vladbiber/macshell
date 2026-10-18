@@ -31,6 +31,12 @@ MACSHELL_LOCK_CMD="glue-macshell lock"
 MACSHELL_COMPOSITOR=$comp
 PATH="/usr/lib/$comp/bin:$PATH"
 export HYPRLAND_INSTANCE_SIGNATURE MACSHELL_MANAGED MACSHELL_SCRIPTS MACSHELL_LOCK_CMD MACSHELL_COMPOSITOR PATH
+# without a Qt platform theme Qt only knows hicolor: use the desktop's icons
+if [ -z "${QS_ICON_THEME:-}" ]; then
+	QS_ICON_THEME=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
+	[ -n "$QS_ICON_THEME" ] && [ "$QS_ICON_THEME" != hicolor ] || QS_ICON_THEME=Papirus
+	export QS_ICON_THEME
+fi
 
 WALLPAPER=/usr/share/backgrounds/glue/glue-mac.jpg
 
