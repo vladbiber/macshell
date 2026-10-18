@@ -22,6 +22,10 @@ import Quickshell.Io
 import Quickshell.Hyprland
 
 ShellRoot {
+    // no live reload: a package upgrade swaps the files under it and the reload
+    // finds them missing, which left the shell empty until a restart
+    settings.watchFiles: false
+
     Scope {
         id: sharedHub
 
