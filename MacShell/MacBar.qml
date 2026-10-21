@@ -75,6 +75,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import Quickshell.Services.Notifications
 import "EmojiData.js" as EmojiData
+import "I18n.js" as I18n
 
 Scope {
     id: root
@@ -95,11 +96,13 @@ Scope {
     property bool notificationsEnabled: true // banners + Notification Center (off = no D-Bus daemon at all, so mako/dunst can take over)
     property bool clockAppEnabled: true      // the Clock app (alarms and timers still ring while it is on)
     readonly property bool barLayerNeeded: barEnabled || spotlightEnabled || ccEnabled || notificationsEnabled
-    property bool darkMode: true
+    property bool darkMode: true             // the resolved look (true = dark); follows appearanceMode
+    property string appearanceMode: "dark"   // light | dark | auto (auto = light by day, dark by night)
+    property bool panelDarkMode: true        // independent Light / Dark look for Spotlight and top bar menus
     property color accent: "#0A84FF"
-    // "Inter" renders with the single variable file: the static Inter.ttc got mapped once per face (~25×13 MB of RSS)
-    property string fontFamily: "Inter Variable"
-    onFontFamilyChanged: if (fontFamily === "Inter" || fontFamily === "Inter Display") fontFamily = "Inter Variable"
+    // The UI font is Open Runde (bundled in assets/fonts, loaded by shell.qml). Settings that still say Inter move over to it.
+    property string fontFamily: "Open Runde"
+    onFontFamilyChanged: if (fontFamily.indexOf("Inter") === 0) fontFamily = "Open Runde"
     property int barHeight: 28
     property string barLogoMode: "glue"       // "glue", "arch", "apple", or "custom"
     property string barCustomLogoPath: ""     // absolute path, ~/path, or file URL for the custom menu-bar logo
@@ -201,6 +204,8 @@ Scope {
     property bool glassDebug: false
     property string wallpaperPath: ""
     property bool use24h: true
+    property string language: "auto"        // "auto" = the system language, or a code with a table in lang/
+    onLanguageChanged: Qt.uiLanguage = language === "auto" ? "" : language
     property bool showDate: true
     property bool showSeconds: false
     property bool showBatteryPercent: true
@@ -238,11 +243,11 @@ Scope {
     property bool fileSearchPending: false
     property var fileHits: []
 
-    readonly property var settingKeys: ["barEnabled", "darkMode", "accent", "fontFamily", "barHeight", "glassOpacity",
-        "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "glassDebug", "wallpaperPath", "use24h", "showDate",
+    readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "panelDarkMode", "accent", "fontFamily", "barHeight", "glassOpacity",
+        "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
         "showSeconds", "showBatteryPercent", "showTray", "showSearch",
         "spotlightEnabled", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "terminal", "launcher",
-        "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
+        "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "wpRestorePath", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
         "lockClockStyle", "switcherStyle", "lockClockFont", "lockClockWeight", "lockClockMaterial", "lockClockIntensity", "lockClockTint", "lockClockTall", "lockClockDate", "autoContrast", "wallpaperAppearance", "wpPairLight", "wpPairDark",
         "notifDnd", "dnd", "nightOn", "keepAwake",
         "kbRepeatRate", "kbRepeatDelay", "mouseSens", "mouseNatural", "tpNatural", "tpTap", "tpDwt", "tpScroll"]
@@ -276,18 +281,18 @@ Scope {
     // The Control Center is a 4-column grid. Every control has a size in grid cells; the enabled ones are packed
     // first-fit in the order of `ccControls`, so dragging a control onto another one simply reorders the list.
     readonly property var ccCatalog: [
-        { id: "wifi",       label: "Wi-Fi",         glyph: "wifi",       w: 2, h: 1 },
-        { id: "bluetooth",  label: "Bluetooth",     glyph: "bluetooth",  w: 2, h: 1 },
-        { id: "airplane",   label: "Airplane Mode", glyph: "airplane",   w: 1, h: 1 },
-        { id: "focus",      label: "Focus",         glyph: "moon",       w: 2, h: 1 },
-        { id: "nightshift", label: "Night Shift",   glyph: "nightshift", w: 1, h: 1 },
-        { id: "keepawake",  label: "Keep Awake",    glyph: "coffee",     w: 1, h: 1 },
-        { id: "darkmode",   label: "Dark Mode",     glyph: "contrast",   w: 1, h: 1 },
-        { id: "gaming",     label: "Game Mode",     glyph: "gamepad",    w: 2, h: 1 },
-        { id: "record",     label: "Screen Recording", glyph: "record",  w: 2, h: 1 },
-        { id: "nowplaying", label: "Now Playing",   glyph: "note",       w: 2, h: 2 },
-        { id: "display",    label: "Display",       glyph: "sun",        w: 4, h: 1 },
-        { id: "sound",      label: "Sound",         glyph: "speaker",    w: 4, h: 1 }
+        { id: "wifi",       label: I18n.tr("Wi-Fi"),         glyph: "wifi",       w: 2, h: 1 },
+        { id: "bluetooth",  label: I18n.tr("Bluetooth"),     glyph: "bluetooth",  w: 2, h: 1 },
+        { id: "airplane",   label: I18n.tr("Airplane Mode"), glyph: "airplane",   w: 1, h: 1 },
+        { id: "focus",      label: I18n.tr("Focus"),         glyph: "moon",       w: 2, h: 1 },
+        { id: "nightshift", label: I18n.tr("Night Shift"),   glyph: "nightshift", w: 1, h: 1 },
+        { id: "keepawake",  label: I18n.tr("Keep Awake"),    glyph: "coffee",     w: 1, h: 1 },
+        { id: "darkmode",   label: I18n.tr("Dark Mode"),     glyph: "contrast",   w: 1, h: 1 },
+        { id: "gaming",     label: I18n.tr("Game Mode"),     glyph: "gamepad",    w: 2, h: 1 },
+        { id: "record",     label: I18n.tr("Screen Recording"), glyph: "record",  w: 2, h: 1 },
+        { id: "nowplaying", label: I18n.tr("Now Playing"),   glyph: "note",       w: 2, h: 2 },
+        { id: "display",    label: I18n.tr("Display"),       glyph: "sun",        w: 4, h: 1 },
+        { id: "sound",      label: I18n.tr("Sound"),         glyph: "speaker",    w: 4, h: 1 }
     ]
     readonly property var ccDefault: ["wifi", "nowplaying", "bluetooth", "airplane", "focus", "record", "nightshift", "keepawake", "display", "sound"]
     function ccDef(id) {
@@ -320,8 +325,23 @@ Scope {
                 }
             }
         }
-        return { items: out, rows: rows };
+        // pixel layout: tiles sit ccGap apart; the two slider tiles (Display, Sound) keep the wider ccSliderGap around them
+        var sliderRow = [], ys = [];
+        for (var k = 0; k < out.length; k++) {
+            if (out[k].id === "display" || out[k].id === "sound")
+                for (var rr = out[k].row; rr < out[k].row + out[k].h; rr++) sliderRow[rr] = true;
+        }
+        for (var r2 = 0; r2 < rows; r2++)
+            ys[r2] = r2 === 0 ? 0 : ys[r2 - 1] + ccCellH + ((sliderRow[r2] || sliderRow[r2 - 1]) ? ccSliderGap : ccGap);
+        for (var m = 0; m < out.length; m++) {
+            out[m].y = ys[out[m].row];
+            out[m].hpx = ys[out[m].row + out[m].h - 1] + ccCellH - ys[out[m].row];
+        }
+        return { items: out, rows: rows, total: rows > 0 ? ys[rows - 1] + ccCellH : 0 };
     }
+    readonly property real ccCellH: 66
+    readonly property real ccGap: 6
+    readonly property real ccSliderGap: 10
     readonly property var ccPlan: ccLayout(ccControls)
     function ccAdd(id) {
         if (ccControls.indexOf(id) < 0) ccControls = ccControls.concat([id]);
@@ -337,12 +357,12 @@ Scope {
         for (var i = 0; i < it.length; i++) {
             if (it[i].id === id) continue;
             var o = it[i];
-            var cx = o.col * (cw + 10) + (o.w * cw + (o.w - 1) * 10) / 2;
-            var cy = o.row * (ch + 10) + (o.h * ch + (o.h - 1) * 10) / 2;
+            var cx = o.col * (cw + ccGap) + (o.w * cw + (o.w - 1) * ccGap) / 2;
+            var cy = o.y + o.hpx / 2;
             var dd = (cx - px) * (cx - px) + (cy - py) * (cy - py);
             if (dd < best) { best = dd; to = order.indexOf(o.id); }
         }
-        if (py > gridH + 10) to = order.length - 1;
+        if (py > gridH + ccSliderGap) to = order.length - 1;
         if (to < 0 || to === from) return;
         order.splice(from, 1);
         order.splice(to, 0, id);
@@ -355,6 +375,10 @@ Scope {
 
     function sh(cmd) { Quickshell.execDetached(["sh", "-c", cmd]); }
     // Log out of Hyprland. 0.55+ (Lua) takes a Lua expression; UWSM sessions are stopped through uwsm so the session ends cleanly.
+    // Lock Screen: starts MacLock (qs -c MacLock); does nothing if it is already running
+    function lockScreen() {
+        sh('pgrep -f -- "-c [M]acLock" >/dev/null 2>&1 || qs -c MacLock');
+    }
     function logOut() {
         sh('if command -v uwsm >/dev/null 2>&1 && uwsm check is-active >/dev/null 2>&1; then uwsm stop; '
            + 'else hyprctl dispatch "hl.dsp.exit()" || hyprctl dispatch exit; fi');
@@ -365,13 +389,54 @@ Scope {
     // switches to dark text / light glass on bright backgrounds and the reverse on dark ones; colours cross-fade.
     property bool autoContrast: true
     property int bgTone: 0
-    readonly property bool effDark: (autoContrast && bgTone !== 0) ? bgTone < 0 : darkMode
+    // System look (Settings → Appearance: Light / Dark / Auto): every panel follows it, like a normal OS, the Control Center
+    // included (ccDark / ccPal are now just aliases of it, no longer measured from what is behind the panel).
+    readonly property bool effDark: darkMode
     property real dk: effDark ? 1 : 0
     Behavior on dk { NumberAnimation { duration: 360; easing.type: Easing.OutCubic } }
     function mixc(l, d) { return Qt.rgba(l.r + (d.r - l.r) * dk, l.g + (d.g - l.g) * dk, l.b + (d.b - l.b) * dk, l.a + (d.a - l.a) * dk); }
+    // Control Center keeps one fixed look (dark): switching the system between Light and Dark does not change its colours
+    readonly property bool ccDark: true
+    property real ccDk: ccDark ? 1 : 0
+    Behavior on ccDk { NumberAnimation { duration: 360; easing.type: Easing.OutCubic } }
+    function ccMix(l, d) { return Qt.rgba(l.r + (d.r - l.r) * ccDk, l.g + (d.g - l.g) * ccDk, l.b + (d.b - l.b) * ccDk, l.a + (d.a - l.a) * ccDk); }
+
+    // Appearance: light / dark / auto. darkMode is the resolved look; the Dock window is kept in step.
+    function autoIsDark() { var h = new Date().getHours(); return h < 7 || h >= 19; }
+    function setAppearance(mode) {
+        if (["light", "dark", "auto"].indexOf(mode) < 0) return;
+        appearanceMode = mode;
+        darkMode = mode === "auto" ? autoIsDark() : mode === "dark";
+        try { if (hub && hub.dock) { hub.dock.appearanceMode = mode; hub.dock.darkMode = darkMode; } } catch (e) {}
+    }
+    Timer {
+        interval: 60000; repeat: true; triggeredOnStart: true
+        running: root.appearanceMode === "auto"
+        onTriggered: { var d = root.autoIsDark(); if (d !== root.darkMode) root.setAppearance("auto"); }
+    }
     QtObject {
         id: bpal
         readonly property bool dark: root.darkMode
+        readonly property string fam: root.fontFamily
+        readonly property color accent: root.accent
+        readonly property color fg: dark ? "#FFFFFF" : "#1D1D1F"
+        readonly property color fg2: dark ? Qt.rgba(1, 1, 1, 0.62) : Qt.rgba(0, 0, 0, 0.55)
+        readonly property color fg3: dark ? Qt.rgba(1, 1, 1, 0.34) : Qt.rgba(0, 0, 0, 0.32)
+        readonly property color tile: dark ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.42)
+        readonly property color tileBorder: dark ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.70)
+        readonly property color btnOff: dark ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.10)
+        readonly property color btnHover: dark ? Qt.rgba(1, 1, 1, 0.30) : Qt.rgba(0, 0, 0, 0.16)
+        readonly property color hover: dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.09)
+        readonly property color sep: dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.12)
+        readonly property color track: dark ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.12)
+        readonly property color content: dark ? "#1E1E1E" : "#F5F5F7"
+        readonly property color card: dark ? "#2B2B2D" : "#FFFFFF"
+        readonly property color cardBorder: dark ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(0, 0, 0, 0.08)
+        readonly property color switchOff: dark ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(0, 0, 0, 0.16)
+    }
+    QtObject {
+        id: panelPal
+        readonly property bool dark: root.panelDarkMode
         readonly property string fam: root.fontFamily
         readonly property color accent: root.accent
         readonly property color fg: dark ? "#FFFFFF" : "#1D1D1F"
@@ -408,6 +473,26 @@ Scope {
         readonly property color card: dark ? "#2B2B2D" : "#FFFFFF"
         readonly property color cardBorder: root.mixc(Qt.rgba(0, 0, 0, 0.08), Qt.rgba(1, 1, 1, 0.07))
         readonly property color switchOff: root.mixc(Qt.rgba(0, 0, 0, 0.16), Qt.rgba(1, 1, 1, 0.22))
+    }
+    QtObject {
+        id: ccPal
+        readonly property bool dark: root.ccDark
+        readonly property string fam: root.fontFamily
+        readonly property color accent: root.accent
+        readonly property color fg: root.ccMix(Qt.color("#1D1D1F"), Qt.color("#FFFFFF"))
+        readonly property color fg2: root.ccMix(Qt.rgba(0, 0, 0, 0.55), Qt.rgba(1, 1, 1, 0.62))
+        readonly property color fg3: root.ccMix(Qt.rgba(0, 0, 0, 0.32), Qt.rgba(1, 1, 1, 0.34))
+        readonly property color tile: root.ccMix(Qt.rgba(1, 1, 1, 0.42), Qt.rgba(1, 1, 1, 0.10))
+        readonly property color tileBorder: root.ccMix(Qt.rgba(1, 1, 1, 0.70), Qt.rgba(1, 1, 1, 0.16))
+        readonly property color btnOff: root.ccMix(Qt.rgba(0, 0, 0, 0.10), Qt.rgba(1, 1, 1, 0.20))
+        readonly property color btnHover: root.ccMix(Qt.rgba(0, 0, 0, 0.16), Qt.rgba(1, 1, 1, 0.30))
+        readonly property color hover: root.ccMix(Qt.rgba(0, 0, 0, 0.09), Qt.rgba(1, 1, 1, 0.14))
+        readonly property color sep: root.ccMix(Qt.rgba(0, 0, 0, 0.12), Qt.rgba(1, 1, 1, 0.14))
+        readonly property color track: root.ccMix(Qt.rgba(0, 0, 0, 0.12), Qt.rgba(1, 1, 1, 0.20))
+        readonly property color content: dark ? "#1E1E1E" : "#F5F5F7"
+        readonly property color card: dark ? "#2B2B2D" : "#FFFFFF"
+        readonly property color cardBorder: root.ccMix(Qt.rgba(0, 0, 0, 0.08), Qt.rgba(1, 1, 1, 0.07))
+        readonly property color switchOff: root.ccMix(Qt.rgba(0, 0, 0, 0.16), Qt.rgba(1, 1, 1, 0.22))
     }
 
     // ═════════════ REUSABLE COMPONENTS ═════════════
@@ -717,6 +802,10 @@ Scope {
         property real thickness: 30
         property real strength: 1.0         // liquid glass strength multiplier
         property real rim: 0.45
+        property real rimTint: 0            // 1 = rim + border line take a brighter shade of the glass's own local colour
+        property real shadowAmt: 1          // outer drop shadow (0 = none)
+        property real flatInner: 0          // 1 = no darker inner edge shading (needs the rebuilt liquidglass shader)
+        property real ringW: 0              // width (px) of the thin border line along the edge, 0 = none
         property real grain: 0.03
         property real blur: 5               // backdrop blur radius, px (settings slider)
         property bool debug: false
@@ -816,9 +905,10 @@ Scope {
                     property real saturation: 1.25
                     property real dark: g.dark ? 1 : 0
                     property real debug: g.debug ? 1 : 0
-                    property real shadowAmt: 1
-                    property real rimTint: 0
-                    property real ringW: 0
+                    property real shadowAmt: g.shadowAmt
+                    property real flatInner: g.flatInner
+                    property real rimTint: g.rimTint
+                    property real ringW: g.ringW
                 }
             }
         }
@@ -840,9 +930,74 @@ Scope {
         property real liquidMul: 1.0        // scales refraction / dispersion / magnify of every slab in this context
         property real paneOpacity: 1.0      // <1 lets the compositor blur show through the shader pane
         property real rim: 0.45
+        property real rimTint: 0            // 1 = rim + border line take a brighter shade of the glass's own local colour
+        property real ringW: 0              // width (px) of the thin border line along the edge, 0 = none
+        property color borderTint: "#8A9AB5"   // wallpaper's dominant colour, for the MenuBorder drawn over each slab
+        property real borderAmount: 1          // strength of that MenuBorder
+        property bool whiteEdge: true       // the light inner ring of the non-liquid pane (off for Spotlight: dark outline only)
         property real grain: 0.03
         property bool debug: false
         signal failed()
+    }
+
+    // Glass context for a bar popover, built the way the Control Center builds its own (blurred copy of the backdrop around the
+    // popover + a GlassCtx), so the popover's background is drawn by the same GGlass / CornerBorder as the Control Center pages.
+    component PopGlassCtx: Item {
+        id: pg
+        required property Item pop
+        required property Item frame
+        required property var source
+        property real fullW: pop.width
+        property real fullH: pop.height
+        property bool fromCC: false                 // opened from the Control Center: keeps the global blur setting
+        readonly property real topBarBlur: 42       // opened from the top bar: the stronger blur of the old version
+        property alias ctx: pgc
+        readonly property real m: 64 * root.barPopupScale
+        ShaderEffectSource {
+            id: pgSrc
+            sourceItem: pg.source
+            hideSource: true
+            live: pg.pop.visible
+            visible: false
+            sourceRect: Qt.rect(pg.pop.x - pg.m, pg.pop.y - pg.m, pg.fullW * root.barPopupScale + 2 * pg.m, pg.fullH * root.barPopupScale + 2 * pg.m)
+        }
+        MultiEffect {
+            id: pgFx
+            source: pgSrc
+            width: pgSrc.sourceRect.width; height: pgSrc.sourceRect.height
+            blurEnabled: true
+            blurMax: 64
+            blur: Math.min(1.0, (pgc.blur * pgc.blurMul) * 1.4 / 64.0)
+            autoPaddingEnabled: false
+            visible: false
+        }
+        ShaderEffectSource {
+            id: pgBlur
+            sourceItem: pgFx
+            live: pg.pop.visible
+            visible: false
+        }
+        GlassCtx {
+            id: pgc
+            src: pgBlur
+            srcRect: pgSrc.sourceRect
+            frame: pg.frame
+            liquid: root.liquidActive
+            shaderUrl: root.glassShaderUrl
+            dark: root.effDark
+            tint: root.glassOpacity
+            strength: root.glassLiquid
+            rim: root.glassRim * 0.25
+            rimTint: 1
+            ringW: 0
+            borderTint: root.menuBorderColor
+            borderAmount: 1
+            whiteEdge: false
+            grain: root.glassGrain
+            blur: pg.fromCC ? root.glassBlur : pg.topBarBlur
+            debug: root.glassDebug
+            onFailed: root.glassState = "failed"
+        }
     }
 
     // One Liquid Glass slab (tile, button, pill, panel) sampling the shared backdrop of its GlassCtx
@@ -854,6 +1009,7 @@ Scope {
         property real strengthMul: 1.0
         property real tintMul: 1.0
         property real shadowAmt: 0.5
+        property real flatInner: 0          // 1 = drop the darker inner edge shading (needs the rebuilt liquidglass shader)
         readonly property real pad: 10
 
         // position inside the popover layer; reads every ancestor's x/y so it re-evaluates when anything moves
@@ -874,6 +1030,7 @@ Scope {
             border.color: gg.gx.dark ? Qt.rgba(0, 0, 0, 0.45) : Qt.rgba(0, 0, 0, 0.12)
             Rectangle {
                 anchors.fill: parent
+                visible: gg.gx.whiteEdge
                 anchors.margins: 1
                 radius: parent.radius - 1
                 color: "transparent"
@@ -912,8 +1069,9 @@ Scope {
                     property real dark: gg.gx.dark ? 1 : 0
                     property real debug: gg.gx.debug ? 1 : 0
                     property real shadowAmt: gg.shadowAmt
-                    property real rimTint: 0
-                    property real ringW: 0
+                    property real flatInner: gg.flatInner
+                    property real rimTint: gg.gx.rimTint
+                    property real ringW: gg.gx.ringW
                 }
             }
         }
@@ -925,7 +1083,34 @@ Scope {
         required property var t
         required property var gx
         property real radius: 34
-        GGlass { anchors.fill: parent; gx: tile.gx; cornerR: tile.radius; thickness: 22; shadowAmt: 0.45 }
+        // the whole tile is the button: a click anywhere fires clicked(); the round icon inside only shows the on / off state
+        property bool on: false
+        property string onTint: ""
+        property bool clickable: false
+        // small icon-only tiles (the "circle buttons"): when on, the whole tile turns white. Wide tiles keep their glass
+        // (only the round icon inside them turns white), so their text colours stay as they are.
+        readonly property bool whole: on && width <= 110
+        readonly property color fg: whole ? Qt.rgba(0.07, 0.07, 0.09, 1) : t.fg
+        readonly property color fg2: whole ? Qt.rgba(0.07, 0.07, 0.09, 0.55) : t.fg2
+        signal clicked()
+        scale: (clickable && tma.pressed) ? 0.97 : 1
+        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.4 } }
+        GGlass { anchors.fill: parent; gx: tile.gx; cornerR: tile.radius; thickness: 22; shadowAmt: 0; flatInner: 1 }
+        Rectangle {     // enabled (small tiles only): the whole tile background is solid white
+            anchors.fill: parent
+            radius: tile.radius
+            color: "white"
+            opacity: tile.whole ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+        }
+        Rectangle {
+            anchors.fill: parent
+            radius: tile.radius
+            color: (tile.clickable && tma.containsMouse) ? (tile.t.dark ? Qt.rgba(1, 1, 1, 0.025) : Qt.rgba(1, 1, 1, 0.07)) : Qt.rgba(1, 1, 1, 0)
+            Behavior on color { ColorAnimation { duration: 320; easing.type: Easing.OutCubic } }
+        }
+        CornerBorder { z: 2; anchors.fill: parent; cornerR: tile.radius; dark: tile.gx.dark; tint: tile.gx.borderTint; amount: tile.gx.borderAmount; lineW: 0.8 }
+        MouseArea { id: tma; anchors.fill: parent; enabled: tile.clickable; hoverEnabled: true; onClicked: tile.clicked() }
     }
 
     // small glass pill button ("Edit Controls", "Done", "Reset")
@@ -937,10 +1122,11 @@ Scope {
         property bool strong: false
         signal clicked()
         width: plText.implicitWidth + 32; height: 28
-        GGlass { anchors.fill: parent; gx: pl.gx; cornerR: 14; thickness: 14; strengthMul: 0.6; shadowAmt: 0.4 }
+        GGlass { anchors.fill: parent; gx: pl.gx; cornerR: 14; thickness: 14; strengthMul: 0.6; shadowAmt: 0; flatInner: 1 }
+        CornerBorder { z: 2; anchors.fill: parent; cornerR: 14; dark: pl.gx.dark; tint: pl.gx.borderTint; amount: pl.gx.borderAmount; lineW: 0.8 }
         Rectangle {
             anchors.fill: parent; radius: 14
-            color: pla.containsMouse ? (pl.t.dark ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.34)) : Qt.rgba(1, 1, 1, 0)
+            color: pla.containsMouse ? (pl.t.dark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(1, 1, 1, 0.09)) : Qt.rgba(1, 1, 1, 0)
         }
         Text {
             id: plText
@@ -987,15 +1173,25 @@ Scope {
         property real shadow: 0
         signal clicked()
         property bool bounce: false
-        width: d; height: d
+        property bool glass: true       // false: a flat circle instead of a Liquid Glass disc
+        property bool plain: false      // icon only: no glass disc and no click area of its own (the tile is the button)
+        readonly property bool inWide: plain && parent && parent.width > 110     // icon on a wide (two-cell) tile
+        // icon on a small (one-cell) tile = a "circle button": a little smaller circle with a bigger icon
+        readonly property bool circleBtn: plain && parent && parent.width <= 110
+        width: circleBtn ? 21 : d; height: width
         scale: (bounce && bma.pressed) ? 0.88 : 1
         Behavior on scale { NumberAnimation { duration: 230; easing.type: Easing.OutBack; easing.overshoot: 3.2 } }
-        GGlass { anchors.fill: parent; gx: b.gx; cornerR: b.d / 2; thickness: 14; strengthMul: 0.6; shadowAmt: b.shadow }
+        GGlass { visible: !b.plain && b.glass; anchors.fill: parent; gx: b.gx; cornerR: b.d / 2; thickness: 14; strengthMul: 0.6; shadowAmt: 0; flatInner: 1 }
+        CornerBorder { visible: !b.plain && b.glass; z: 2; anchors.fill: parent; cornerR: b.d / 2; dark: b.gx.dark; tint: b.gx.borderTint; amount: b.gx.borderAmount; lineW: 0.8 }
         Rectangle {
             anchors.fill: parent
-            radius: b.d / 2
-            color: b.on ? (b.onTint !== "" ? Qt.color(b.onTint) : Qt.rgba(b.t.accent.r, b.t.accent.g, b.t.accent.b, 0.92))
-                        : (bma.containsMouse ? (b.t.dark ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.34)) : Qt.rgba(1, 1, 1, 0))
+            radius: b.width / 2
+            // enabled: solid white fill (the icon carries the accent colour); off: grey circle only on wide tiles
+            color: b.on ? "white"
+                        : (b.plain ? (b.inWide ? (b.t.dark ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.14))      // wide tile: grey circle while off
+                                               : Qt.rgba(1, 1, 1, 0))                                                 // small tile: none
+                                   : (!b.glass ? (b.t.dark ? Qt.rgba(1, 1, 1, bma.containsMouse ? 0.22 : 0.16) : Qt.rgba(0, 0, 0, bma.containsMouse ? 0.18 : 0.14))   // flat, no glass
+                                               : (bma.containsMouse ? (b.t.dark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(1, 1, 1, 0.09)) : Qt.rgba(1, 1, 1, 0))))
             Behavior on color { ColorAnimation { duration: 320; easing.type: Easing.OutCubic } }
         }
         // state flip: the icon dips, turns a touch and springs back (motion), while the fill fades
@@ -1010,12 +1206,12 @@ Scope {
             scale: 1 - 0.22 * b.pop
             rotation: (b.on ? -14 : 14) * b.pop
             anchors.centerIn: parent
-            width: b.d * 0.46; height: width
+            width: b.circleBtn ? 23 : b.width * 0.46; height: width
             kind: b.kind; level: b.level; flag: b.flag
-            color: b.on ? "white" : b.t.fg
+            color: b.on ? (b.onTint !== "" ? Qt.color(b.onTint) : b.t.accent) : b.t.fg
             Behavior on color { ColorAnimation { duration: 320; easing.type: Easing.OutCubic } }
         }
-        MouseArea { id: bma; anchors.fill: parent; hoverEnabled: true; onClicked: b.clicked() }
+        MouseArea { id: bma; anchors.fill: parent; enabled: !b.plain; hoverEnabled: true; onClicked: b.clicked() }
     }
 
     // thin-line slider: icon at each end, slim rounded track between them
@@ -1027,10 +1223,38 @@ Scope {
         property string rightKind: "sun"
         property real leftLevel: 1
         property real rightLevel: 3
+        property var gx: null               // glass context: when set, the knob turns into Liquid Glass while it is held
+        property real glassMul: 1.0         // refraction boost for the knob (the macOS-style panel runs its glass very softly)
         signal moved(real v)
         height: 28
+        property bool tileHover: false        // the pointer is anywhere over the tile that holds this slider
+        readonly property bool hovering: sma.containsMouse || sma.pressed || tileHover
+        // knob animation state: hover pops a rounded square in, holding it springs it bigger and turns it to glass
+        property real hoverT: hovering ? 1 : 0
+        Behavior on hoverT { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 2.2 } }
+        property real pressT: sma.pressed ? 1 : 0
+        Behavior on pressT { NumberAnimation { duration: sma.pressed ? 420 : 300; easing.type: Easing.OutBack; easing.overshoot: 3.0 } }
         readonly property real trackX: 28
         readonly property real trackW: Math.max(1, s.width - 28 - 26)
+        // jiggle: the knob stretches, leans and wobbles when the value moves; how hard depends on how fast it moves.
+        // `vel` is the smoothed speed (px/ms); `jig` chases a target set from it through a spring, so it overshoots and rings
+        // out after the movement stops (the target goes back to 0 shortly after the last change).
+        property real vel: 0
+        property real jig: 0
+        property real lastV: value
+        property real lastT: 0
+        Behavior on jig { SpringAnimation { spring: 3.4; damping: 0.2; epsilon: 0.004 } }
+        onValueChanged: {
+            var now = Date.now();
+            if (lastT > 0) {
+                var dt = Math.max(1, now - lastT);
+                vel = vel * 0.45 + ((value - lastV) * trackW / dt) * 0.55;
+                jig = Math.max(-1.5, Math.min(1.5, vel * 0.6));
+            }
+            lastV = value; lastT = now;
+            jigIdle.restart();
+        }
+        Timer { id: jigIdle; interval: 70; onTriggered: { s.vel = 0; s.jig = 0; } }
         Glyph {
             x: 4; anchors.verticalCenter: parent.verticalCenter
             width: 16; height: 16
@@ -1055,8 +1279,73 @@ Scope {
             kind: s.rightKind; level: s.rightLevel
             color: s.t.fg2
         }
+        // the knob: a rounded square on hover; held, it grows with a little spring and becomes Liquid Glass
+        Item {
+            id: knob
+            readonly property real kw: 21 + 6 * s.pressT
+            readonly property real kh: 14 + 3 * s.pressT
+            width: Math.max(1, kw); height: Math.max(1, kh)
+            x: s.trackX + Math.max(0, Math.min(1, s.value)) * s.trackW - width / 2 - s.jig * 3     // trails a little behind when moving
+            anchors.verticalCenter: parent.verticalCenter
+            visible: s.hoverT > 0.01
+            opacity: Math.min(1, s.hoverT * 1.6)
+            scale: 0.5 + 0.5 * s.hoverT
+            rotation: s.jig * 7
+            transform: Scale {      // squash and stretch along the movement: longer and flatter the faster it goes
+                origin.x: knob.width / 2; origin.y: knob.height / 2
+                xScale: 1 + 0.32 * Math.min(1.5, Math.abs(s.jig))
+                yScale: 1 - 0.16 * Math.min(1.5, Math.abs(s.jig))
+            }
+            readonly property real rad: Math.max(2, Math.min(height / 2, 8 + 3 * s.pressT))
+            // solid white-ish square (fades out while the glass takes over)
+            Rectangle {
+                anchors.fill: parent
+                radius: knob.rad
+                color: s.t.fg
+                opacity: s.gx ? Math.max(0, 1 - s.pressT * 1.4) : 1
+            }
+            Loader {
+                anchors.fill: parent
+                active: s.gx !== null && s.pressT > 0.02
+                opacity: Math.min(1, s.pressT * 1.6)
+                sourceComponent: Item {
+                    GGlass { anchors.fill: parent; gx: s.gx; cornerR: knob.rad; thickness: 16; strengthMul: s.glassMul * 0.85; shadowAmt: 0.5 }
+                    // the slider bar seen through the glass: the part of the track that lies under the knob
+                    Item {
+                        anchors.fill: parent
+                        clip: true
+                        Rectangle {
+                            x: s.trackX - knob.x; width: s.trackW; height: 4; radius: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Qt.rgba(s.t.fg.r, s.t.fg.g, s.t.fg.b, 0.35)
+                        }
+                        Rectangle {
+                            x: s.trackX - knob.x
+                            width: Math.max(0, Math.min(1, s.value)) * s.trackW
+                            height: 4; radius: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Qt.rgba(s.t.fg.r, s.t.fg.g, s.t.fg.b, 0.9)
+                        }
+                    }
+                    // edge: the same border as the Control Center buttons (thin, brighter shade of the background, fading out at the top-right and bottom-left corners, a bit translucent)
+                    CornerBorder { z: 2; anchors.fill: parent; cornerR: knob.rad; dark: s.gx.dark; tint: s.gx.borderTint; amount: s.gx.borderAmount; lineW: 0.8 }
+                    // glassy sheen: a soft specular highlight along the top, fading out towards the middle
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: knob.rad
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, s.t.dark ? 0.12 : 0.2) }
+                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.02) }
+                            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, s.t.dark ? 0.04 : 0.08) }
+                        }
+                    }
+                }
+            }
+        }
         MouseArea {
+            id: sma
             anchors.fill: parent
+            hoverEnabled: true
             preventStealing: true
             function setFrom(mx) { s.moved(Math.max(0, Math.min(1, (mx - s.trackX) / s.trackW))); }
             onPressed: mouse => setFrom(mouse.x)
@@ -1173,7 +1462,7 @@ Scope {
             spacing: 1
             Text {
                 width: parent.width
-                text: nb.urgency === 2 ? "TIME SENSITIVE" : nb.app
+                text: nb.urgency === 2 ? I18n.tr("TIME SENSITIVE") : nb.app
                 horizontalAlignment: /[\u0590-\u08ff]/.test(text) ? Text.AlignRight : Text.AlignLeft
                 visible: text !== ""
                 color: nb.urgency === 2 ? nb.t.fg2 : nb.t.fg
@@ -1253,44 +1542,40 @@ Scope {
         border.color: t.cardBorder
         Column { id: pcol; width: parent.width }
     }
-    component PSwitch: Item {
-        id: sw
+    component PSwitch: GlassSwitch {
         required property var t
-        property bool checked: false
-        signal toggled(bool value)
-        width: 38; height: 22
-        Rectangle { anchors.fill: parent; radius: 11; color: sw.checked ? sw.t.accent : sw.t.switchOff }
-        Rectangle {
-            x: sw.checked ? 18 : 2; y: 2; width: 18; height: 18; radius: 9; color: "white"
-            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-        }
-        MouseArea { anchors.fill: parent; onClicked: sw.toggled(!sw.checked) }
+        accentColor: "#30D158"
+        offColor: t.switchOff
+        dark: t.dark
+        baseColor: t.dark ? "#2B2B2D" : "#FFFFFF"
+        glass: root.liquidActive
+        shaderUrl: root.glassShaderUrl
+        glassLiquid: root.glassLiquid
+        glassRim: root.glassRim
+        glassGrain: root.glassGrain
+        glassTint: root.glassOpacity
+        borderTint: root.menuBorderColor
+        onGlassFailed: root.glassState = "failed"
     }
-    component PSlider: Item {
-        id: ps
+    // same slider as the Control Center (see GlassSlider.qml)
+    component PSlider: GlassSlider {
         required property var t
-        property real from: 0
-        property real to: 1
-        property real value: 0
-        signal moved(real v)
-        width: 190; height: 22
-        readonly property real pos: to > from ? Math.max(0, Math.min(1, (value - from) / (to - from))) : 0
-        Rectangle { y: 9; width: parent.width; height: 4; radius: 2; color: ps.t.track }
-        Rectangle { y: 9; width: ps.pos * (ps.width - 20) + 10; height: 4; radius: 2; color: ps.t.accent }
-        Rectangle {
-            x: ps.pos * (ps.width - 20); y: 1; width: 20; height: 20; radius: 10; color: "white"
-            border.width: 1; border.color: Qt.rgba(0, 0, 0, 0.16)
-        }
-        MouseArea {
-            anchors.fill: parent
-            preventStealing: true
-            function setFrom(mx) {
-                var p = Math.max(0, Math.min(1, (mx - 10) / (ps.width - 20)));
-                ps.moved(Math.round((ps.from + p * (ps.to - ps.from)) * 100) / 100);
-            }
-            onPressed: mouse => setFrom(mouse.x)
-            onPositionChanged: mouse => { if (pressed) setFrom(mouse.x); }
-        }
+        decimals: 2
+        width: 190
+        fg: t.fg
+        trackColor: t.track
+        labelColor: t.fg2
+        fontFamily: t.fam
+        dark: t.dark
+        baseColor: t.dark ? "#2B2B2D" : "#FFFFFF"
+        glass: root.liquidActive
+        shaderUrl: root.glassShaderUrl
+        glassLiquid: root.glassLiquid
+        glassRim: root.glassRim
+        glassGrain: root.glassGrain
+        glassTint: root.glassOpacity
+        borderTint: root.menuBorderColor
+        onGlassFailed: root.glassState = "failed"
     }
     component PSeg: Item {
         id: sg
@@ -1315,7 +1600,7 @@ Scope {
                     required property int index
                     width: sg.segWidth; height: sg.height - 4
                     Text {
-                        anchors.centerIn: parent; text: parent.modelData
+                        anchors.centerIn: parent; text: I18n.tr(parent.modelData)
                         color: sg.t.dark ? "#F5F5F7" : "#1D1D1F"
                         font.family: sg.t.fam; font.pixelSize: 12
                     }
@@ -1332,7 +1617,7 @@ Scope {
         var d = clock.date;
         var tf = root.use24h ? (root.showSeconds ? "HH:mm:ss" : "HH:mm") : (root.showSeconds ? "h:mm:ss AP" : "h:mm AP");
         var t = Qt.formatDateTime(d, tf);
-        return root.showDate ? Qt.formatDateTime(d, "ddd d MMM") + "  " + t : t;
+        return root.showDate ? I18n.locale().toString(d, "ddd d MMM") + "  " + t : t;
     }
 
     // active app
@@ -1345,10 +1630,10 @@ Scope {
     readonly property var activeTl: ToplevelManager.activeToplevel
     readonly property string activeAppId: activeTl ? (activeTl.appId || "") : ""
     readonly property string appName: {
-        if (activeAppId === "") return "Desktop";
+        if (activeAppId === "") return I18n.tr("Desktop");
         // MacShell's own windows (all "org.quickshell")
-        if (activeAppId === "org.quickshell") return (activeTl.title === "Clock" || activeTl.title === "App Store") ? activeTl.title
-                                                     : (activeTl.title === "macshell Settings" ? "System Settings" : "MacShell");
+        if (activeAppId === "org.quickshell") return (activeTl.title === "Clock" || activeTl.title === "App Store") ? I18n.tr(activeTl.title)
+                                                     : (activeTl.title === "macshell Settings" ? I18n.tr("System Settings") : "MacShell");
         var e = lookup(activeAppId);
         return e ? e.name : activeAppId;
     }
@@ -1370,11 +1655,11 @@ Scope {
     readonly property var menuTitles: [
         { id: "apple", label: "" },
         { id: "app", label: appName, bold: true },
-        { id: "file", label: "File" },
-        { id: "edit", label: "Edit" },
-        { id: "view", label: "View" },
-        { id: "window", label: "Window" },
-        { id: "help", label: "Help" }
+        { id: "file", label: I18n.tr("File") },
+        { id: "edit", label: I18n.tr("Edit") },
+        { id: "view", label: I18n.tr("View") },
+        { id: "window", label: I18n.tr("Window") },
+        { id: "help", label: I18n.tr("Help") }
     ]
 
     // audio
@@ -1472,6 +1757,20 @@ Scope {
         return out;
     }
     readonly property var appAudioStreams: audioApps()
+    // The list of apps the sliders are built from only changes when an app appears or goes away. appAudioStreams is rebuilt on
+    // every volume tick, and feeding it straight to the Repeater destroyed the slider under your finger mid-drag.
+    property var appAudioKeys: []
+    function syncAppKeys() {
+        var k = [], l = appAudioStreams;
+        for (var i = 0; i < l.length; i++) k.push(l[i].key);
+        if (JSON.stringify(k) !== JSON.stringify(appAudioKeys)) appAudioKeys = k;
+    }
+    onAppAudioStreamsChanged: syncAppKeys()
+    function appByKey(key) {
+        var l = appAudioStreams;
+        for (var i = 0; i < l.length; i++) if (l[i].key === key) return l[i];
+        return null;
+    }
     function setAppVolume(app, v) {
         if (!app || !app.nodes) return;
         osdQuiet("volume", 600);
@@ -1828,6 +2127,25 @@ Scope {
     }
     function setBrightness(v) { osdQuiet("brightness", 1800); brightness = Math.max(0.01, Math.min(1, v)); brightApply.restart(); }
     onBrightnessChanged: showOsd("brightness", brightness)
+    // hardware keys: like the sliders, but the on-screen display is shown (no quiet window)
+    function hwVolume(d) {
+        if (!sink || !sink.audio) return;
+        var v = Math.max(0, Math.min(1, Math.round((sink.audio.volume + d) * 100) / 100));
+        if (d > 0) sink.audio.muted = false;
+        sink.audio.volume = v;
+        showOsd("volume", sink.audio.muted ? 0 : v);
+    }
+    function hwMute() {
+        if (!sink || !sink.audio) return;
+        sink.audio.muted = !sink.audio.muted;
+        showOsd("volume", sink.audio.muted ? 0 : sink.audio.volume);
+    }
+    function hwMicMute() { if (micSource && micSource.audio) micSource.audio.muted = !micSource.audio.muted; }
+    function hwBrightness(d) {
+        brightness = Math.max(0.01, Math.min(1, Math.round((brightness + d) * 100) / 100));
+        brightApply.restart();
+        showOsd("brightness", brightness);
+    }
     Timer { interval: 850; repeat: true; running: true; onTriggered: root.refreshBrightness() }
     // ═════════════ KEYBOARD LAYOUT ═════════════
     // Hyprland announces every change with an `activelayout` event, so the label updates immediately (no polling).
@@ -1937,10 +2255,10 @@ Scope {
     }
     readonly property var privacyRows: {
         var a = [];
-        if (privacy.mic.length > 0) a.push({ k: "mic", glyph: "mic", c: "#FF9F0A", title: "Microphone", sub: privacy.mic.join(", ") });
+        if (privacy.mic.length > 0) a.push({ k: "mic", glyph: "mic", c: "#FF9F0A", title: I18n.tr("Microphone"), sub: privacy.mic.join(", ") });
         if (privacy.cam.length > 0) a.push({ k: "cam", glyph: "camera", c: "#30D158", title: "Camera", sub: privacy.cam.join(", ") });
-        if (privacy.share.length > 0) a.push({ k: "share", glyph: "monitor", c: "#BF5AF2", title: "Screen Sharing", sub: privacy.share.join(", ") });
-        if (recording) a.push({ k: "rec", glyph: "monitor", c: "#BF5AF2", title: "Screen Recording", sub: "Recording " + recTime() });
+        if (privacy.share.length > 0) a.push({ k: "share", glyph: "monitor", c: "#BF5AF2", title: I18n.tr("Screen Sharing"), sub: privacy.share.join(", ") });
+        if (recording) a.push({ k: "rec", glyph: "monitor", c: "#BF5AF2", title: I18n.tr("Screen Recording"), sub: I18n.tr("Recording ") + recTime() });
         return a;
     }
     // ── screen recording ──
@@ -2131,6 +2449,18 @@ Scope {
         function open(): void { root.ccRequest(true); }
         function close(): void { root.ccRequest(false); }
     }
+    // Laptop / keyboard hardware keys (volume, mute, brightness). The compositor must bind the keys (the installer's
+    // macshell.lua does); the shell then does the work itself, so the numbers, the on-screen display and the UI sounds
+    // all stay in step.   qs -c MacShell ipc call hardware volumeUp | volumeDown | mute | micMute | brightnessUp | brightnessDown
+    IpcHandler {
+        target: "hardware"
+        function volumeUp(): void { root.hwVolume(0.05); }
+        function volumeDown(): void { root.hwVolume(-0.05); }
+        function mute(): void { root.hwMute(); }
+        function micMute(): void { root.hwMicMute(); }
+        function brightnessUp(): void { root.hwBrightness(0.05); }
+        function brightnessDown(): void { root.hwBrightness(-0.05); }
+    }
     IpcHandler {
         target: "spotlight"
         function toggle(): void { root.search(); }
@@ -2222,10 +2552,10 @@ Scope {
         var day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
         if (day === today) return "Copied " + tm;
         if (day === today - 86400000) return "Copied Yesterday, " + tm;
-        return "Copied " + Qt.formatDateTime(d, "d MMM") + ", " + tm;
+        return I18n.tr("Copied ") + I18n.locale().toString(d, "d MMM") + ", " + tm;
     }
     function clipEntry(id, txt, ts) {
-        var en = { id: id, text: txt, kind: "text", title: txt, label: "Text", host: "", thumb: "", color: "" };
+        var en = { id: id, text: txt, kind: "text", title: txt, label: I18n.tr("Text"), host: "", thumb: "", color: "" };
         var m = /^\[\[ binary data ([\d.]+ \w+) (\w+) (\d+x\d+) \]\]$/.exec(txt);
         if (m) {
             en.kind = "image";
@@ -2406,6 +2736,8 @@ Scope {
         if (clipAutoPaste) pasteSoon();
     }
 
+    // the MacShell logo: the icon of MacShell's own windows in the Alt+Tab switcher
+    readonly property string logoPath: decodeURIComponent(String(Qt.resolvedUrl("assets/macshell-logo.png")).replace(/^file:\/\//, ""))
     // ── applications for Spotlight ──
     function iconSrc(name) {
         var fb = Quickshell.iconPath("application-x-executable", true);
@@ -2493,23 +2825,23 @@ Scope {
     function appItems(q, limit) {
         var r = searchApps(q), out = [];
         for (var i = 0; i < r.length && i < limit; i++)
-            out.push({ title: r[i].name, sub: r[i].genericName || "Application", icon: iconSrc(r[i].icon),
+            out.push({ title: r[i].name, sub: r[i].genericName || I18n.tr("Application"), icon: iconSrc(r[i].icon),
                        glyph: "", confirm: false, run: appRunner(r[i]) });
         return out;
     }
     function actionItems(q) {
         var all = [
-            { title: "Lock Screen", glyph: "lock", run: function () { sh(root.lockCmd); } },
-            { title: "Sleep", glyph: "moon", run: function () { sh("loginctl suspend"); } },
-            { title: "System Settings\u2026", glyph: "gear", run: function () { openSettings(); } },
-            { title: "Log Out", glyph: "logout", confirm: true, run: function () { root.logOut(); } },
-            { title: "Restart", glyph: "restart", confirm: true, run: function () { sh("loginctl reboot"); } },
-            { title: "Shut Down", glyph: "power", confirm: true, run: function () { sh("loginctl poweroff"); } }
+            { title: I18n.tr("Lock Screen"), glyph: "lock", run: function () { sh(root.lockCmd); } },
+            { title: I18n.tr("Sleep"), glyph: "moon", run: function () { sh("loginctl suspend"); } },
+            { title: I18n.tr("System Settings\u2026"), glyph: "gear", run: function () { openSettings(); } },
+            { title: I18n.tr("Log Out"), glyph: "logout", confirm: true, run: function () { root.logOut(); } },
+            { title: I18n.tr("Restart"), glyph: "restart", confirm: true, run: function () { sh("loginctl reboot"); } },
+            { title: I18n.tr("Shut Down"), glyph: "power", confirm: true, run: function () { sh("loginctl poweroff"); } }
         ];
         var s = (q || "").trim().toLowerCase(), out = [];
         for (var i = 0; i < all.length; i++) {
             if (s !== "" && all[i].title.toLowerCase().indexOf(s) < 0) continue;
-            out.push({ title: all[i].title, sub: "Action", icon: "", glyph: all[i].glyph,
+            out.push({ title: all[i].title, sub: I18n.tr("Action"), icon: "", glyph: all[i].glyph,
                        confirm: all[i].confirm === true, run: all[i].run });
         }
         return out;
@@ -2532,7 +2864,7 @@ Scope {
         var result;
         if(units[a][0]==="temp") result=(a==="f"||a==="°f")?(val-32)*5/9:val, result=(b==="f"||b==="°f")?result*9/5+32:result;
         else result=val*units[a][1]/units[b][1];
-        return {title:Number(result.toPrecision(7))+" "+b,sub:"Unit conversion",glyph:"link",run:function(){Quickshell.execDetached(["wl-copy",String(result)]);}};
+        return {title:Number(result.toPrecision(7))+" "+b,sub:I18n.tr("Unit conversion"),glyph:"link",run:function(){Quickshell.execDetached(["wl-copy",String(result)]);}};
     }
     function windowItems(q) {
         var out=[], s=(q||"").trim().toLowerCase(); if(!s)return out;
@@ -2541,7 +2873,7 @@ Scope {
             var t=ts[i], o=t.lastIpcObject||{}, title=String(o.title||t.title||""), cls=String(o["class"]||t.appId||""), app=root.lookup(cls), label=title||app&&app.name||cls;
             if((label+" "+cls+" "+(app?app.name:" ")).toLowerCase().indexOf(s)<0)continue;
             var addr=String(o.address||t.address||""); if(addr!=="" && addr.indexOf("0x")!==0) addr="0x"+addr;
-            (function(win,addr,workspace,cl,name,icon){out.push({title:name,sub:"Open Window",icon:icon||"",glyph:"layers",run:function(){root.swPending={addr:addr,ws:workspace,cls:cl};swFocusTimer.restart();}});})(t,addr,o.workspace&&o.workspace.id>0?o.workspace.id:0,cls,label,app?root.iconSrc(app.icon):"");
+            (function(win,addr,workspace,cl,name,icon){out.push({title:name,sub:I18n.tr("Open Window"),icon:icon||"",glyph:"layers",run:function(){root.swPending={addr:addr,ws:workspace,cls:cl};swFocusTimer.restart();}});})(t,addr,o.workspace&&o.workspace.id>0?o.workspace.id:0,cls,label,app?root.iconSrc(app.icon):"");
         }
         return out;
     }
@@ -2552,22 +2884,25 @@ Scope {
         var out = [], s = (q || "").trim().toLowerCase();
         if (s.indexOf("file ") === 0 || s.indexOf("find ") === 0) {
             var fq=s.replace(/^(file|find)\s+/,"").trim(); if(fq!=="" && fileQuery!==fq) updateFileSearch(fq);
-            out=fileItems(fq); if(out.length===0) out.push({title:fileSearchPending?"Searching files…":"No matching files",sub:"Files",glyph:"folder",run:function(){}});
+            out=fileItems(fq); if(out.length===0) out.push({title:fileSearchPending?I18n.tr("Searching files…"):I18n.tr("No matching files"),sub:I18n.tr("Files"),glyph:"folder",run:function(){}});
             return out;
         }
         if(s.length>0) out=appItems(q,4);
         var cv=conversion(s); if(cv) out.unshift(cv);
-        else { var expr=s.replace(/^=\s*/,""); var v=calcValue(expr); if(v!==null && (s.charAt(0)==="=" || /[+*/%xX×÷()]/.test(s))) out.unshift({title:String(Number(v.toPrecision(10))),sub:"Calculator · Return to copy",glyph:"search",run:function(){Quickshell.execDetached(["wl-copy",String(v)]);}}); }
+        else { var expr=s.replace(/^=\s*/,""); var v=calcValue(expr); if(v!==null && (s.charAt(0)==="=" || /[+*/%xX×÷()]/.test(s))) out.unshift({title:String(Number(v.toPrecision(10))),sub:I18n.tr("Calculator · Return to copy"),glyph:"search",run:function(){Quickshell.execDetached(["wl-copy",String(v)]);}}); }
         var wins=windowItems(q); for(var j=0;j<wins.length&&out.length<6;j++)out.push(wins[j]);
         var acts=actionItems(q); for(var k=0;k<acts.length&&out.length<6;k++)if(acts[k].title.toLowerCase().indexOf(s)===0)out.push(acts[k]);
-        if(s.length>0 && out.length<7) out.push({title:"Search the web for “"+q.trim()+"”",sub:"Web Search · Return to open",glyph:"search",run:function(){Quickshell.execDetached(["xdg-open","https://search.brave.com/search?q="+encodeURIComponent(q.trim())]);}});
+        if(s.length>0 && out.length<7) out.push({title:I18n.tr("Search the web for “")+q.trim()+"”",sub:I18n.tr("Web Search · Return to open"),glyph:"search",run:function(){Quickshell.execDetached(["xdg-open","https://search.brave.com/search?q="+encodeURIComponent(q.trim())]);}});
         return out.slice(0,8);
     }
 
     function menuModelFor(name) {
         var m = [], i;
         if (name === "apple") {
-            m.push(mi("About This Linux", "", function () { sh(terminal + " -e sh -c 'fastfetch || neofetch; echo; read -p \"Press Enter\" _'"); }));
+            m.push(mi("About This Linux", "", function () {
+                if (hub && hub.about) hub.about.open();
+                else sh(terminal + " -e sh -c 'fastfetch || neofetch; echo; read -p \"Press Enter\" _'");
+            }));
             m.push(msep());
             m.push(mi("System Settings\u2026", "", function () { root.openSettings(); }));
             m.push(msep());
@@ -2592,16 +2927,16 @@ Scope {
                     m.push(msep());
                     m.push(mi("Search\u2026", "", function () { root.search(); }));
                 } else {
-                    m.push(mi("About " + n, "", function () { root.aboutActive(aw, n); }));
+                    m.push(mi(I18n.tr("About ") + n, "", function () { root.aboutActive(aw, n); }));
                     if (editor || files) {
                         m.push(msep());
                         m.push(mi("Preferences\u2026", "Ctrl+,", keys(["ctrl"], "comma")));
                     }
                     m.push(msep());
-                    m.push(mi("Hide " + n, "", disp('hl.dsp.window.move({ workspace = "special:hidden", follow = false })')));
+                    m.push(mi(I18n.tr("Hide ") + n, "", disp('hl.dsp.window.move({ workspace = "special:hidden", follow = false })')));
                     m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
                     m.push(msep());
-                    m.push(mi("Quit " + n, "Ctrl+Q", function () { root.quitActive(); }));
+                    m.push(mi(I18n.tr("Quit ") + n, "Ctrl+Q", function () { root.quitActive(); }));
                     m.push(mc("Force Quit " + n, function () { root.forceQuitActive(aw); }));
                 }
             } else if (name === "file") {
@@ -2678,7 +3013,7 @@ Scope {
                     }
                     m.push(msep());
                 }
-                m.push(mchk("Dark Mode", "", root.darkMode, function () { root.darkMode = !root.darkMode; }));
+                m.push(mchk("Dark Mode", "", root.darkMode, function () { root.setAppearance(root.darkMode ? "light" : "dark"); }));
             } else if (name === "window") {
                 if (has) {
                     m.push(mi("Minimize", "", disp('hl.dsp.window.move({ workspace = "special:minimized", follow = false })')));
@@ -2886,7 +3221,7 @@ Scope {
                     Text {
                         id: hintTxt
                         anchors.centerIn: parent
-                        text: "Drag to select an area   \u2022   Return: whole screen   \u2022   Esc: cancel"
+                        text: I18n.tr("Drag to select an area   \u2022   Return: whole screen   \u2022   Esc: cancel")
                         color: "white"
                         font.family: root.fontFamily; font.pixelSize: 13
                     }
@@ -3046,7 +3381,7 @@ Scope {
     }
     function resetSettings() {
         barEnabled = true;
-        darkMode = true; accent = "#0a84ff"; fontFamily = "Inter Variable"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.0; barGlass = false; glassRealtime = false;
+        darkMode = true; appearanceMode = "dark"; panelDarkMode = true; accent = "#0a84ff"; fontFamily = "Open Runde"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.0; barGlass = false; glassRealtime = false;
         barStyle = "liquid"; use24h = true; showDate = true; showSeconds = false; showBatteryPercent = true;
         showTray = true; showSearch = true;
         spotlightEnabled = true; ccEnabled = true; notificationsEnabled = true; clockAppEnabled = true; ccStyle = "tiles";
@@ -3063,7 +3398,7 @@ Scope {
         onLoaded: {
             try {
                 var o = JSON.parse(text());
-                root.applySettings(o, ["darkMode", "accent", "fontFamily", "glassOpacity", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "wallpaperPath"]);
+                root.applySettings(o, ["darkMode", "appearanceMode", "accent", "fontFamily", "glassOpacity", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "wallpaperPath"]);
                 if (o.dockStyle !== undefined) root.barStyle = (o.dockStyle === "liquid") ? "liquid" : "blur";
             } catch (err) { }
             store.path = root.configDir + "/settings.json";
@@ -3138,6 +3473,88 @@ Scope {
         if (p.indexOf("file://") === 0) return p;
         return "file://" + encodeURI(p).replace(/#/g, "%23").replace(/\?/g, "%3F");
     }
+    property color wallpaperAccent: "#8A9AB5"      // most common colour of the current wallpaper
+    property string wallpaperAccentFor: ""         // image the accent above was sampled from
+    // the menu border: same hue as the wallpaper's dominant colour, lifted (dark panels) or deepened (light panels)
+    // so it stays readable on the glass whatever the wallpaper is
+    readonly property color menuBorderColor: {
+        var c = wallpaperAccent;
+        var h = c.hslHue < 0 ? 0 : c.hslHue, sat = c.hslSaturation, l = c.hslLightness;
+        var s2 = sat < 0.06 ? sat : Math.max(0.28, Math.min(0.75, sat));     // greys stay grey
+        var l2 = panelDarkMode ? Math.max(0.66, Math.min(0.86, l * 0.5 + 0.50))
+                               : Math.max(0.30, Math.min(0.52, l * 0.5 + 0.05));
+        return Qt.hsla(h, s2, l2, 1);
+    }
+    property string awwwWallpaperPath: ""
+    readonly property string dominantWallpaperPath: {
+        if (root.awwwWallpaperPath !== "") return root.awwwWallpaperPath;
+        var screens = Quickshell.screens;
+        return root.wallpaperFor(screens && screens.length ? screens[0].name : "");
+    }
+    property bool wallpaperSampleForce: true
+    onWallpaperPathChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
+    onWallpaperMapChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
+    onDominantWallpaperPathChanged: { wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
+    function sampleWallpaperColor() {
+        if (awwwQueryProc.running || wallpaperColorProc.running) { wallpaperColorTimer.restart(); return; }
+        awwwQueryProc.running = true;
+    }
+    Timer { id: wallpaperColorTimer; interval: 500; onTriggered: root.sampleWallpaperColor() }
+    // wallpapers changed from outside the shell (another tool, a script): notice within half a minute.
+    // Cheap: it only re-reads the wallpaper's path and re-samples when that path differs.
+    Timer { interval: 30000; repeat: true; running: root.barEnabled && !root.gaming; onTriggered: root.sampleWallpaperColor() }
+    Process {
+        id: awwwQueryProc
+        // always exits 0 (even without awww installed) so the sampler below runs on the fallback wallpaper path
+        command: ["sh", "-c", "awww query -j 2>/dev/null || swww query -j 2>/dev/null || true"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var out = text.trim(), path = "";
+                try {
+                    var data = JSON.parse(out);
+                    function findImage(v) {
+                        if (!v || typeof v !== "object") return "";
+                        if (typeof v.image === "string" && v.image !== "") return v.image;
+                        for (var k in v) { var found = findImage(v[k]); if (found) return found; }
+                        return "";
+                    }
+                    path = findImage(data);
+                } catch (e) {
+                    var match = out.match(/image:\s*(.+)/i);
+                    if (match) path = match[1].trim();
+                }
+                if (path.indexOf("~/") === 0) path = Quickshell.env("HOME") + path.substring(1);
+                if (root.awwwWallpaperPath !== path) root.awwwWallpaperPath = path;
+                var fallback = root.wallpaperFor(Quickshell.screens && Quickshell.screens.length ? Quickshell.screens[0].name : "");
+                var p = path || fallback;
+                if (p.indexOf("file://") === 0) p = decodeURIComponent(p.substring(7));
+                if (p === "") return;
+                if (p === root.wallpaperAccentFor && !root.wallpaperSampleForce) return;   // same picture, nothing to do
+                root.wallpaperSampleForce = false;
+                wallpaperColorProc.samplePath = p;
+                // [0] = first frame only (animated gifs); ImageMagick 7 (magick) or 6 (convert)
+                wallpaperColorProc.command = ["sh", "-c",
+                    'f="$1"; for t in magick convert; do command -v "$t" >/dev/null 2>&1 && ' +
+                    '{ "$t" "${f}[0]" -alpha off -resize 64x64! -colors 8 -depth 8 -format %c histogram:info:- 2>/dev/null && exit 0; }; done; exit 0',
+                    "sh", p];
+                wallpaperColorProc.running = true;
+            }
+        }
+    }
+    Process {
+        id: wallpaperColorProc
+        property string samplePath: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var rows = text.split("\n"), bestCount = -1, bestColor = "";
+                for (var i = 0; i < rows.length; i++) {
+                    var m = rows[i].match(/^\s*(\d+):.*?(#[0-9a-f]{6})/i);
+                    if (m && Number(m[1]) > bestCount) { bestCount = Number(m[1]); bestColor = m[2]; }
+                }
+                if (bestColor) { root.wallpaperAccent = bestColor; root.wallpaperAccentFor = wallpaperColorProc.samplePath; }
+            }
+        }
+    }
 
     // live window geometry for the backdrop (polled only while a glass popover is open)
     readonly property var monData: hub ? hub.monData : []
@@ -3148,8 +3565,9 @@ Scope {
     // window captures are admitted by the shared gate in shell.qml (hub.tlFor): 0.2 s after a window appears, one every 110 ms
 
     Component.onCompleted: {
+        syncAppKeys();
         Quickshell.execDetached(["mkdir", "-p", configDir]);
-        refreshBrightness();
+        wallpaperColorTimer.start();
         refreshWifi();
         refreshKeyboardLayout();
         refreshConnections();
@@ -3311,6 +3729,7 @@ Scope {
     property string wallpaperDir: ""          // "" = ~/Pictures/Wallpapers
     property var wallpaperFavs: []            // favourite image paths, shown first
     property string wallpaperVideo: ""        // animated wallpaper (video) playing right now, "" = a still picture
+    property string wpRestorePath: ""         // the picture the picker set last: put back at every start (awww does not keep it after a reboot)
     property var wpThumbs: ({})               // video path → cached thumbnail
     property var wpPreviews: ({})             // video path → small looping animated WebP (no video player in the shell)
     property string wallpaperCmd: ""          // "" = auto (awww / swww / hyprpaper); or your own command, {} = the image path
@@ -3370,6 +3789,33 @@ Scope {
         root.wpDirList = dir;
         root.wpFavOk = ok;
         root.wpRebuild();
+
+        // Return the file list immediately; build missing video thumbnails in a separate process.
+        var videos = [];
+        for (var j = 0; j < dir.length; j++) if (root.wpIsVideo(dir[j])) videos.push(dir[j]);
+        if (videos.length && !wpThumbBuild.running) {
+            var script = [
+                'tc="$HOME/.cache/macshell/thumbs"; mkdir -p "$tc"',
+                'for v do',
+                '  t="$tc/$(printf "%s:%s" "$v" "$(stat -c %Y "$v" 2>/dev/null)" | md5sum | cut -c1-16).jpg"',
+                '  if [ ! -s "$t" ]; then ffmpeg -loglevel error -y -ss 1 -i "$v" -frames:v 1 -vf "scale=360:-2" "$t" </dev/null >/dev/null 2>&1; fi',
+                '  [ -s "$t" ] && printf "T:%s\\t%s\\n" "$v" "$t"',
+                '  w="${t%.jpg}.webp"; if [ ! -s "$w" ] && [ -x "${MACSHELL_SCRIPTS:-$HOME/.config/hypr-macshell/scripts}/macshell-setwall.sh" ]; then setsid nice -n 15 "${MACSHELL_SCRIPTS:-$HOME/.config/hypr-macshell/scripts}/macshell-setwall.sh" --prepare "$v" >/dev/null 2>&1 </dev/null & fi',
+                'done'
+            ].join("\n");
+            wpThumbBuild.command = ["sh", "-c", script, "sh"].concat(videos);
+            wpThumbBuild.running = true;
+        }
+    }
+    function wpMergeThumbs(text) {
+        var th = Object.assign({}, root.wpThumbs || {}), lines = text.split("\n");
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf("T:") !== 0) continue;
+            var k = lines[i].indexOf("\t");
+            if (k > 2) th[lines[i].substring(2, k)] = lines[i].substring(k + 1);
+        }
+        root.wpThumbs = th;
+        root.wpRebuild();
     }
     function wpRefresh() {
         if (wpScan.running) return;
@@ -3377,16 +3823,6 @@ Scope {
             'd="$1"; mk="$2"; shift 2',
             '[ "$mk" = "1" ] && [ ! -d "$d" ] && mkdir -p "$d" 2>/dev/null',
             'if [ -d "$d" ]; then find -L "$d" -maxdepth 3 -type f 2>/dev/null | grep -iE "[.](jpe?g|png|webp|bmp|gif|mp4|webm|mkv|mov|m4v)$" | sort -V | sed "s/^/A:/"; fi',
-            // animated wallpapers: a cached thumbnail frame per video
-            'tc="$HOME/.cache/macshell/thumbs"; mkdir -p "$tc"',
-            'if [ -d "$d" ]; then find -L "$d" -maxdepth 3 -type f 2>/dev/null | grep -iE "[.](mp4|webm|mkv|mov|m4v)$" | while IFS= read -r v; do',
-            '  t="$tc/$(printf "%s:%s" "$v" "$(stat -c %Y "$v" 2>/dev/null)" | md5sum | cut -c1-16).jpg"',
-            '  [ -s "$t" ] || ffmpeg -loglevel error -y -ss 1 -i "$v" -frames:v 1 -vf "scale=480:-2" "$t" </dev/null >/dev/null 2>&1',
-            '  [ -s "$t" ] && printf "T:%s\\t%s\\n" "$v" "$t"',
-            // animated preview + optimized playback copy: built once, in the background, at low priority
-            '  w="${t%.jpg}.webp"',
-            '  if [ -s "$w" ]; then printf "P:%s\\t%s\\n" "$v" "$w"; else setsid nice -n 15 "${MACSHELL_SCRIPTS:-$HOME/.config/hypr-macshell/scripts}/macshell-setwall.sh" --prepare "$v" >/dev/null 2>&1 </dev/null & fi',
-            'done; fi',
             'for f in "$@"; do [ -f "$f" ] && echo "F:$f"; done',
             'exit 0'
         ].join("\n");
@@ -3427,9 +3863,20 @@ Scope {
     function hhmmToMin(t) { var m = /T(\d+):(\d+)/.exec(t || ""); return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : -1; }
     // Sets a picture as the real desktop wallpaper: awww first (its daemon is started if needed), then the other daemons.
     // $1 = image path. Also stops a running animated wallpaper (mpvpaper) so it does not stay on top of the picture.
+    // Clear the watched state before stopping mpvpaper; otherwise the live-wallpaper supervisor respawns it.
+    readonly property string stopVideoScript: [
+        'state="$HOME/.config/macshell/wallpaper-video"',
+        'rm -f "$state" "$HOME/.config/macshell/wallpaper-video-play" "$HOME/.config/macshell/wallpaper-video-glass"',
+        'supfile="$HOME/.cache/macshell/wallsup.pid"',
+        'if [ -f "$supfile" ]; then g=$(cat "$supfile" 2>/dev/null); case "$g" in ""|*[!0-9]*) ;; *) kill -TERM -- "-$g" 2>/dev/null ;; esac; rm -f "$supfile"; fi',
+        'pkill -CONT -x mpvpaper >/dev/null 2>&1',
+        'pkill -TERM -x mpvpaper >/dev/null 2>&1',
+        'for i in 1 2 3 4 5; do pgrep -x mpvpaper >/dev/null || break; sleep 0.1; done',
+        'pkill -KILL -x mpvpaper >/dev/null 2>&1'
+    ].join("\n")
     readonly property string awwwScript: [
         'p="$1"',
-        'pkill -x mpvpaper >/dev/null 2>&1',
+        root.stopVideoScript,
         'if command -v awww >/dev/null 2>&1; then',
         '  if ! awww query >/dev/null 2>&1; then',
         '    if command -v awww-daemon >/dev/null 2>&1; then setsid awww-daemon >/dev/null 2>&1 & fi',
@@ -3492,13 +3939,32 @@ Scope {
             return;
         }
         root.wallpaperVideo = "";
+        root.wpRestorePath = path;
         root.wallpaperPath = path;                                            // the glass refracts the new image straight away
         try { if (root.hub && root.hub.dock) root.hub.dock.wallpaperPath = path; } catch (e) {}
         var cmd = (root.wallpaperCmd || "").trim();
-        var script = cmd !== "" ? cmd.split("{}").join('"$1"') : root.awwwScript;
+        var script = cmd !== "" ? root.stopVideoScript + "\n" + cmd.split("{}").join('"$1"') : root.awwwScript;
         wpApplyProc.command = ["sh", "-c", script, "sh", path];
         wpApplyProc.running = true;
     }
+    // Wallpaper that survives a reboot: awww / mpvpaper start empty at login, so the shell puts the last choice back.
+    // A picture is skipped when awww already shows it; light/dark pairs are handled by wpApplyAppearance.
+    function wpRestore() {
+        if (wpHasPair) return;
+        if (wallpaperVideo !== "") {
+            setwallProc.command = ["sh", "-c", '[ -x "$1" ] && exec "$1" "$2"', "sh", setwallScript, wallpaperVideo];
+            setwallProc.running = true;
+            return;
+        }
+        var p = wpRestorePath;
+        if (p === "") return;
+        var cmd = (wallpaperCmd || "").trim();
+        var script = cmd !== "" ? '[ -f "$1" ] || exit 0\n' + root.stopVideoScript + "\n" + cmd.split("{}").join('"$1"')
+                                : '[ -f "$1" ] || exit 0\nif command -v awww >/dev/null 2>&1 && awww query 2>/dev/null | grep -qF -- "$1"; then exit 0; fi\n' + root.awwwScript;
+        wpApplyProc.command = ["sh", "-c", script, "sh", p];
+        wpApplyProc.running = true;
+    }
+    Timer { interval: 3500; running: true; onTriggered: root.wpRestore() }
     Process {
         id: setwallProc
         stdout: StdioCollector {
@@ -3513,6 +3979,7 @@ Scope {
     }
     Process {
         id: wpApplyProc
+        onExited: { root.wallpaperSampleForce = true; wallpaperColorTimer.restart(); }
         stdout: StdioCollector { onStreamFinished: if (text.trim() !== "") console.log("[wallpaper]", text.trim()) }
         stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") console.log("[wallpaper] error:", text.trim()) }
     }
@@ -3534,6 +4001,7 @@ Scope {
         wpPick.running = true;
     }
     Process { id: wpScan; stdout: StdioCollector { onStreamFinished: root.wpParse(text) } }
+    Process { id: wpThumbBuild; stdout: StdioCollector { onStreamFinished: root.wpMergeThumbs(text) } }
     Process {
         id: wpPick
         stdout: StdioCollector {
@@ -3624,8 +4092,8 @@ Scope {
             if (seen[id] !== undefined) { apps[seen[id]].count++; continue; }
             var e = root.lookup(id);
             seen[id] = apps.length;
-            apps.push({ appId: id, cls: t.appId, name: id === "systemsettings" ? "System Settings" : (e ? e.name : id),
-                        icon: id === "systemsettings" ? "preferences-system" : (e ? e.icon : ""), win: t, count: 1 });
+            apps.push({ appId: id, cls: t.appId, name: id === "systemsettings" ? "System Settings" : (id === "org.quickshell" ? "MacShell" : (e ? e.name : id)),
+                        icon: id === "systemsettings" ? "preferences-system" : (id === "org.quickshell" ? root.logoPath : (e ? e.icon : "")), win: t, count: 1 });
         }
         return apps;
     }
@@ -3745,7 +4213,7 @@ Scope {
 
             WlrLayershell.namespace: "macbar"
             WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.keyboardFocus: (ui.pop === "wifi" && ui.wifiPrompt !== "") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: ((ui.pop === "wifi" || (ui.pop === "cc" && ui.ccPage === "wifi")) && ui.wifiPrompt !== "") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
             mask: Region { item: maskItem; Region { item: toastMask } }
 
@@ -3761,6 +4229,8 @@ Scope {
                 property int calMonth: 0
                 property string wifiPrompt: ""      // ssid whose password field is open in the Wi-Fi popover
                 property bool ccEdit: false         // Control Center is in "Edit Controls" mode
+                property string ccPage: ""          // "" = the control grid, "wifi" = the Wi-Fi list shown inside the Control Center
+                onCcPageChanged: wifiPrompt = ""
                 property var trayItem: null         // SystemTrayItem whose menu is open in the tray popover
                 property var trayStack: []          // submenu path (QsMenuEntry objects) inside that menu
                 Timer { interval: 400; repeat: true; running: ui.pop === "vol"; onTriggered: root.audioTick++ }
@@ -3800,12 +4270,12 @@ Scope {
                 }
                 Timer {
                     interval: 4000; repeat: true
-                    running: ui.pop === "wifi" && ui.wifiPrompt === ""     // paused while typing so the list doesn't rebuild under the cursor
+                    running: (ui.pop === "wifi" || (ui.pop === "cc" && ui.ccPage === "wifi")) && ui.wifiPrompt === ""     // paused while typing so the list doesn't rebuild under the cursor
                     onTriggered: root.scanWifi()
                 }
                 Timer {
                     interval: 4000; repeat: true
-                    running: ui.pop === "bt"
+                    running: ui.pop === "bt" || (ui.pop === "cc" && ui.ccPage === "bt")
                     onTriggered: root.scanBt()
                 }
 
@@ -3923,6 +4393,7 @@ Scope {
                     wifiPrompt = "";
                     spHoverLabel = "";
                     if (pop !== "cc") ccEdit = false;
+                    if (pop !== "cc") ccPage = "";
                     root.notifOpen = (pop === "notif");
                     if (root.notifOpen) root.notifUnread = 0;
                     if (pop === "wifi") { root.wifiError = ""; root.scanWifi(); root.refreshConnections(); }
@@ -3954,7 +4425,7 @@ Scope {
                     target: root
                     function onNotifPopRequest(open) {
                         if (!ui.toastScreen) return;
-                        if (open) ui.openPop("notif", ui.width); else if (ui.pop === "notif") ui.pop = "";
+                        if (open) ui.openPop("notif", bellBtn.visible ? bellBtn.mapToItem(ui, 0, 0).x : ui.width - 60); else if (ui.pop === "notif") ui.pop = "";
                     }
                 }
                 function openPop(name, x) {
@@ -4276,6 +4747,15 @@ Scope {
                         blur: root.glassBlur
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        rimTint: 1
+                        ringW: 1.4
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: height / 2
+                        dark: root.effDark
+                        tint: root.menuBorderColor
                     }
                     Glyph {
                         x: 20; anchors.verticalCenter: parent.verticalCenter
@@ -4380,7 +4860,7 @@ Scope {
                                     id: tl
                                     visible: mt.modelData.id !== "apple"
                                     anchors.centerIn: parent
-                                    text: mt.modelData.label
+                                    text: I18n.tr(mt.modelData.label)
                                     color: bpal.fg
                                     font.family: bpal.fam
                                     font.pixelSize: 13
@@ -4616,7 +5096,7 @@ Scope {
                                 width: 7; height: 7; radius: 3.5
                                 color: "#FF453A"
                             }
-                            MouseArea { anchors.fill: parent; onClicked: ui.openPop("notif", 0) }
+                            MouseArea { anchors.fill: parent; onClicked: ui.openPop("notif", bellBtn.mapToItem(ui, 0, 0).x) }
                         }
                         // wifi
                         Item {
@@ -4699,34 +5179,65 @@ Scope {
                 Item {
                     id: volPop
                     z: 10
-                    width: 330
-                    height: Math.min(volCol.height + 28, ui.height - root.barHeight - 40)
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 8, ui.menuX - width / 2))
-                    y: root.barHeight + 6
-                    opacity: ui.pop === "vol" ? 1 : 0
-                    visible: opacity > 0
-                    scale: root.barPopupScale * (ui.pop === "vol" ? 1 : 0.96)
-                    transformOrigin: Item.Top
-                    Behavior on opacity { NumberAnimation { duration: 110 } }
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                    LGlass {
-                        anchors.fill: parent
-                        backdrop: ui.glassSrc
-                        shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
-                        dark: root.effDark
-                        bx: volPop.x; by: volPop.y
-                        cornerR: 26
-                        tint: root.glassOpacity
-                        thickness: 22
-                        strength: 0.7 * root.glassLiquid
-                        rim: root.glassRim
-                        grain: root.glassGrain
-                        blur: root.glassBlur
-                        debug: root.glassDebug
-                        onShaderError: root.glassState = "failed"
+                    // same morph as the Wi-Fi popover, growing out of the speaker icon (menuX is the icon's centre here)
+    readonly property real ps: root.barPopupScale
+                    readonly property real fullW: 330
+                    readonly property real fullH: Math.min(volCol.height + 28, ui.height - root.barHeight - 40)
+                    // the rectangle it grows from (the bar icon, in screen px) and the one it grows into
+                    readonly property real srcW: 26
+                    readonly property real srcH: 22
+                    readonly property real srcX: ui.menuX - 13
+                    readonly property real srcY: Math.max(0, (root.barHeight - srcH) / 2)
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX - fullW * ps / 2))
+                    readonly property real dstY: root.barHeight + 6
+
+                    readonly property bool opening: ui.pop === "vol"
+                    property real openT: opening ? 1 : 0
+                    Behavior on openT {
+                        NumberAnimation {
+                            duration: volPop.opening ? 520 : 220
+                            easing.type: volPop.opening ? Easing.OutBack : Easing.InOutCubic
+                            easing.overshoot: 0.7
+                        }
                     }
+                    readonly property real t: Math.max(0, Math.min(1, openT))
+                    readonly property real contentT: Math.max(0, Math.min(1, (openT - 0.28) / 0.55))
+
+                    width: (srcW + (fullW * ps - srcW) * openT) / ps
+                    height: (srcH + (fullH * ps - srcH) * openT) / ps
+                    x: srcX + (dstX - srcX) * openT
+                    y: srcY + (dstY - srcY) * openT
+                    opacity: Math.min(1, t * 4)
+                    visible: openT > 0.002
+                    scale: ps
+                    transformOrigin: Item.TopLeft
+
+                    // morph blur: only exists while the animation runs, so the open panel is drawn directly (crisp text)
+                    readonly property real blurAmt: Math.pow(1 - t, 1.3)
+                    readonly property bool morphing: openT > 0.002 && Math.abs(openT - 1) > 0.002
+                    layer.enabled: morphing
+                    layer.smooth: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 48
+                        blur: volPop.blurAmt * 0.9
+                        autoPaddingEnabled: true
+                    }
+
+                    PopGlassCtx { id: volPopGlass; pop: volPop; frame: ui; source: ui.glassSrc; fullW: volPop.fullW; fullH: volPop.fullH }
+                    GGlass { anchors.fill: parent; gx: volPopGlass.ctx; cornerR: Math.min(26, 8 + 18 * volPop.t); thickness: 22; shadowAmt: 0; flatInner: 1 }
+                    CornerBorder { z: 2; anchors.fill: parent; cornerR: Math.min(26, 8 + 18 * volPop.t); dark: volPopGlass.ctx.dark; tint: volPopGlass.ctx.borderTint; amount: volPopGlass.ctx.borderAmount; lineW: 0.8; fade: false }
                     MouseArea { anchors.fill: parent }      // clicks inside don't close the popover
+
+                    Item {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        clip: true
+                    Item {
+                        id: volBody
+                        x: -1; y: -1 + 10 * (1 - volPop.contentT)
+                        width: volPop.fullW; height: volPop.fullH
+                        opacity: volPop.contentT
                     Flickable {
                         id: volFlick
                         x: 0; y: 14
@@ -4743,11 +5254,11 @@ Scope {
                             width: volFlick.width - 28
                             spacing: 3
 
-                            Text { x: 4; text: "Output"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold; bottomPadding: 3 }
+                            Text { x: 4; text: I18n.tr("Output"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold; bottomPadding: 3 }
                             Item {
                                 width: parent.width; height: 32
                                 CCSlider {
-                                    t: pal
+                                    t: pal; gx: volPopGlass.ctx
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width
                                     value: root.muted ? 0 : root.volume
@@ -4770,36 +5281,47 @@ Scope {
                                     onClicked: root.chooseAudio(modelData)
                                 }
                             }
-                            Text { visible: root.audioOutputs.length === 0; x: 4; text: "No output devices"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; topPadding: 4; bottomPadding: 4 }
+                            Text { visible: root.audioOutputs.length === 0; x: 4; text: I18n.tr("No output devices"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; topPadding: 4; bottomPadding: 4 }
                             Item { width: 1; height: 5 }
-                            Text { x: 4; text: "Apps"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold; bottomPadding: 2 }
+                            Text { x: 4; text: I18n.tr("Apps"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold; bottomPadding: 2 }
                             Repeater {
-                                model: root.appAudioStreams
+                                model: root.appAudioKeys
                                 delegate: Item {
-                                    required property var modelData
-                                    width: volCol.width - 28; height: 54
+                                    id: appRow
+                                    required property string modelData
+                                    readonly property var app: root.appByKey(modelData)
+                                    // while dragging, the knob follows the pointer instead of waiting for the next volume update
+                                    property bool dragging: false
+                                    property real dragV: 0
+                                    readonly property real vol: dragging ? dragV : (app ? app.volume : 0)
+                                    Timer { id: dragEnd; interval: 500; onTriggered: appRow.dragging = false }
+                                    visible: app !== null
+                                    width: volCol.width - 28; height: app ? 54 : 0
                                     Text {
                                         x: 4; y: 0; width: parent.width - 8
-                                        text: modelData.name + "  ·  " + Math.round(modelData.volume * 100) + "%"
+                                        text: (appRow.app ? appRow.app.name : "") + "  ·  " + Math.round(appRow.vol * 100) + "%"
                                         color: pal.fg; elide: Text.ElideRight
                                         font.family: pal.fam; font.pixelSize: 12
                                     }
                                     CCSlider {
-                                        t: pal; x: 0; y: 20; width: parent.width
-                                        value: modelData.volume
-                                        leftKind: "speaker"; leftLevel: modelData.volume < 0.34 ? 1 : (modelData.volume < 0.67 ? 2 : 3)
+                                        t: pal; gx: volPopGlass.ctx; x: 0; y: 20; width: parent.width
+                                        value: appRow.vol
+                                        leftKind: "speaker"; leftLevel: appRow.vol < 0.34 ? 1 : (appRow.vol < 0.67 ? 2 : 3)
                                         rightKind: "speaker"; rightLevel: 3
-                                        onMoved: v => root.setAppVolume(modelData, v)
+                                        onMoved: v => {
+                                            appRow.dragV = v; appRow.dragging = true; dragEnd.restart();
+                                            root.setAppVolume(appRow.app, v);
+                                        }
                                     }
                                 }
                             }
-                            Text { visible: root.appAudioStreams.length === 0; x: 4; text: "No apps are playing audio"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 11; topPadding: 2; bottomPadding: 4 }
+                            Text { visible: root.appAudioKeys.length === 0; x: 4; text: I18n.tr("No apps are playing audio"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 11; topPadding: 2; bottomPadding: 4 }
                             Item { width: 1; height: 5 }
                             Rectangle { width: parent.width; height: 1; color: pal.sep }
                             Item { width: 1; height: 5 }
                             Item {
                                 width: parent.width; height: 32
-                                Text { x: 4; anchors.verticalCenter: parent.verticalCenter; text: "Input"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold }
+                                Text { x: 4; anchors.verticalCenter: parent.verticalCenter; text: I18n.tr("Input"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold }
                                 Rectangle {
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
@@ -4813,7 +5335,7 @@ Scope {
                             Item {
                                 width: parent.width; height: 32
                                 CCSlider {
-                                    t: pal
+                                    t: pal; gx: volPopGlass.ctx
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width
                                     value: root.micMuted ? 0 : root.micVolume
@@ -4834,8 +5356,10 @@ Scope {
                                     onClicked: root.chooseAudio(modelData)
                                 }
                             }
-                            Text { visible: root.audioInputs.length === 0; x: 4; text: "No input devices"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; topPadding: 4; bottomPadding: 4 }
+                            Text { visible: root.audioInputs.length === 0; x: 4; text: I18n.tr("No input devices"); color: pal.fg2; font.family: pal.fam; font.pixelSize: 12; topPadding: 4; bottomPadding: 4 }
                         }
+                    }
+                    }
                     }
                 }
 
@@ -4863,12 +5387,21 @@ Scope {
                         cornerR: 22
                         tint: root.glassOpacity
                         thickness: 22
-                        strength: 0.7 * root.glassLiquid
+                        strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
                         grain: root.glassGrain
-                        blur: root.glassBlur
+                        blur: 42
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        rimTint: 1
+                        ringW: 1.4
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: 22
+                        dark: root.effDark
+                        tint: root.menuBorderColor
                     }
                     MouseArea { anchors.fill: parent }
                     Column {
@@ -5019,6 +5552,17 @@ Scope {
                                     blur: root.notifBlur
                                     debug: root.glassDebug
                                     onShaderError: root.glassState = "failed"
+                                    rimTint: 1
+                                    ringW: 0.9
+                                    shadowAmt: 0.35
+                                }
+                                MenuBorder {
+                                    z: 2
+                                    anchors.fill: tslab
+                                    cornerR: Math.min(24 + (1 - toast.tc) * 40, height / 2)
+                                    dark: root.effDark
+                                    tint: root.menuBorderColor
+                                    amount: 0.5
                                 }
                                 MouseArea {
                                     anchors.fill: parent
@@ -5058,51 +5602,115 @@ Scope {
                 Item {
                     id: notifPop
                     z: 10
-                    width: 380
-                    // while clearing it tracks the collapsing list frame by frame (never shorter than the empty state),
+                    // same morph as the Wi-Fi popover: one glass shape grows out of the bell. When popups merge in it appears
+                    // at once instead (its cards are the popups) and only the chrome builds in around them.
+                    // while clearing the height tracks the collapsing list frame by frame (never shorter than the empty state),
                     // so the dust and the shrink are one motion; otherwise it eases to its new size
-                    height: 92 + (notifHist.count === 0 ? 70 : (root.notifClearing ? Math.max(70, nfl.height) : nfl.height)) + 14
-                    Behavior on height { enabled: !root.notifClearing; NumberAnimation { duration: 560; easing.type: Easing.OutQuint } }
-                    x: Math.max(6, ui.width - width - 8)
-                    y: root.barHeight + 6
-                    opacity: ui.pop === "notif" ? 1 : 0
-                    visible: opacity > 0
-                    scale: root.barPopupScale * (ui.pop === "notif" ? 1 : 0.96)
-                    transformOrigin: Item.TopRight
-                    // popups merging in: the panel appears at once (its cards are the popups, solid from the first frame) and only
-                    // its chrome (glass, header, Do Not Disturb) builds in around them
+                    property real fullH: 92 + (notifHist.count === 0 ? 70 : (root.notifClearing ? Math.max(70, nfl.height) : nfl.height)) + 14
+                    Behavior on fullH { enabled: !root.notifClearing; NumberAnimation { duration: 560; easing.type: Easing.OutQuint } }
+                    readonly property real ps: root.barPopupScale
+                    readonly property real fullW: 380
+                    readonly property real srcW: 26
+                    readonly property real srcH: 22
+                    readonly property real srcX: Math.max(0, Math.min(ui.width - srcW, ui.menuX + 1))
+                    readonly property real srcY: Math.max(0, (root.barHeight - srcH) / 2)
+                    readonly property real dstX: Math.max(6, ui.width - fullW * ps - 8)
+                    readonly property real dstY: root.barHeight + 6
+
                     readonly property bool merging: ui.toastsShown
-                    property real chrome: ui.pop === "notif" ? 1 : 0
-                    Behavior on chrome { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-                    Behavior on opacity { enabled: !notifPop.merging; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-                    Behavior on scale { enabled: !notifPop.merging; NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
+                    readonly property bool opening: ui.pop === "notif"
+                    property real openT: opening ? 1 : 0
+                    Behavior on openT {
+                        enabled: !notifPop.merging
+                        NumberAnimation {
+                            duration: notifPop.opening ? 520 : 220
+                            easing.type: notifPop.opening ? Easing.OutBack : Easing.InOutCubic
+                            easing.overshoot: 0.7
+                        }
+                    }
+                    readonly property real t: Math.max(0, Math.min(1, openT))
+                    readonly property real contentT: Math.max(0, Math.min(1, (openT - 0.28) / 0.55))
+                    // chrome (glass fill, header, Do Not Disturb): follows the morph, or builds in on its own while popups merge
+                    property real chromeM: ui.pop === "notif" ? 1 : 0
+                    Behavior on chromeM { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+                    readonly property real chrome: merging ? chromeM : contentT
+
+                    width: (srcW + (fullW * ps - srcW) * openT) / ps
+                    height: (srcH + (fullH * ps - srcH) * openT) / ps
+                    x: srcX + (dstX - srcX) * openT
+                    y: srcY + (dstY - srcY) * openT
+                    opacity: Math.min(1, t * 4)
+                    visible: openT > 0.002
+                    scale: ps
+                    transformOrigin: Item.TopLeft
+
+                    readonly property real blurAmt: Math.pow(1 - t, 1.3)
+                    readonly property bool morphing: openT > 0.002 && Math.abs(openT - 1) > 0.002
+                    layer.enabled: morphing
+                    layer.smooth: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 48
+                        blur: notifPop.blurAmt * 0.9
+                        autoPaddingEnabled: true
+                    }
 
                     LGlass {
                         anchors.fill: parent
-                        opacity: notifPop.chrome
+                        opacity: notifPop.merging ? notifPop.chromeM : 1
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
                         liquid: root.liquidActive
                         dark: root.effDark
                         bx: notifPop.x; by: notifPop.y
-                        cornerR: 26
+                        cornerR: Math.min(26, 8 + 18 * notifPop.t)
                         tint: root.glassOpacity
                         thickness: 26
                         strength: 0.8 * root.glassLiquid
                         rim: root.glassRim
                         grain: root.glassGrain
-                        blur: root.notifBlur
+                        blur: 42                                // same blur as the Wi-Fi / Bluetooth / audio popovers
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        rimTint: 1
+                        ringW: 0.9
+                        shadowAmt: 0.35
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: Math.min(26, 8 + 18 * notifPop.t)
+                        dark: root.effDark
+                        tint: root.menuBorderColor
+                        amount: 0.5
+                    }
+                    CornerBorder {                  // same border as the Wi-Fi / Bluetooth / audio popovers: even on all four corners
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: Math.min(26, 8 + 18 * notifPop.t)
+                        dark: root.effDark
+                        tint: root.menuBorderColor
+                        amount: 0.5
+                        lineW: 0.8
+                        fade: false
                     }
                     MouseArea { anchors.fill: parent }      // clicks inside the panel don't close it
+
+                    // the content keeps its full size and is revealed by the growing glass (clipped), so nothing reflows mid-morph
+                    Item {
+                        anchors.fill: parent
+                        clip: true
+                    Item {
+                        id: notifBody
+                        x: 0; y: notifPop.merging ? 0 : 10 * (1 - notifPop.contentT)
+                        width: notifPop.fullW; height: notifPop.fullH
 
                     Item {
                         x: 18; y: 14; width: parent.width - 36; height: 26
                         opacity: notifPop.chrome
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Notification system"
+                            text: I18n.tr("Notification system")
                             color: pal.fg
                             font.family: pal.fam; font.pixelSize: 17; font.weight: Font.DemiBold
                         }
@@ -5114,7 +5722,7 @@ Scope {
                             Text {
                                 id: clrText
                                 anchors.centerIn: parent
-                                text: "Clear All"
+                                text: I18n.tr("Clear All")
                                 color: pal.fg
                                 font.family: pal.fam; font.pixelSize: 12; font.weight: Font.Medium
                             }
@@ -5124,25 +5732,20 @@ Scope {
                     Item {
                         x: 12; y: 46; width: parent.width - 24; height: 36
                         opacity: notifPop.chrome
-                        Rectangle { anchors.fill: parent; radius: 12; color: pal.tile; border.width: 1; border.color: pal.tileBorder }
+                        Rectangle { anchors.fill: parent; radius: 12; color: pal.tile; border.width: 1; border.color: Qt.rgba(pal.tileBorder.r, pal.tileBorder.g, pal.tileBorder.b, pal.tileBorder.a * 0.4) }
                         Glyph { x: 12; anchors.verticalCenter: parent.verticalCenter; width: 15; height: 15; kind: "moon"; color: pal.fg }
                         Text {
                             x: 36; anchors.verticalCenter: parent.verticalCenter
-                            text: "Do Not Disturb"
+                            text: I18n.tr("Do Not Disturb")
                             color: pal.fg
                             font.family: pal.fam; font.pixelSize: 13
                         }
-                        Rectangle {
-                            anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                            width: 38; height: 22; radius: 11
-                            color: root.notifDnd ? pal.accent : pal.switchOff
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                            Rectangle {
-                                y: 2; width: 18; height: 18; radius: 9; color: "white"
-                                x: root.notifDnd ? 18 : 2
-                                Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                            }
-                            MouseArea { anchors.fill: parent; onClicked: root.notifDnd = !root.notifDnd }
+                        // the same Liquid Glass switch as everywhere else (see GlassSwitch.qml)
+                        PSwitch {
+                            t: pal
+                            anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                            checked: root.notifDnd
+                            onToggled: v => root.notifDnd = v
                         }
                     }
                     Text {
@@ -5152,12 +5755,13 @@ Scope {
                         Behavior on opacity { NumberAnimation { duration: 360; easing.type: Easing.OutCubic } }
                         x: 0; y: 96; width: parent.width; height: 60
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                        text: "No Notifications"
+                        text: I18n.tr("No Notifications")
                         color: pal.fg2
                         font.family: pal.fam; font.pixelSize: 14
                     }
                     Flickable {
                         id: nfl
+                        opacity: notifPop.merging ? 1 : notifPop.contentT
                         x: 12; y: 92
                         width: parent.width - 24
                         height: Math.min(ncol.height, 440)
@@ -5194,7 +5798,7 @@ Scope {
                                         var f = root.notifMergeFrom[hcd.nid];
                                         if (!f || flipAnim.running) return;
                                         // the card's final width is the panel's list width (the list may not be laid out yet)
-                                        var cw = notifPop.width - 24;
+                                        var cw = notifPop.fullW - 24;
                                         if (!(cw > 0)) return;
                                         var here = hcd.mapToItem(ui, 0, 0);
                                         hcd.flipX = f.x + f.w - (here.x + cw);      // right edges line up (scale origin is the right edge)
@@ -5250,7 +5854,7 @@ Scope {
                                     height: hbody.height
                                     radius: 18
                                     color: pal.tile
-                                    border.width: 1; border.color: pal.tileBorder
+                                    border.width: 1; border.color: Qt.rgba(pal.tileBorder.r, pal.tileBorder.g, pal.tileBorder.b, pal.tileBorder.a * 0.4)
                                     HoverHandler { id: hhov }
                                     MouseArea {
                                         anchors.fill: parent
@@ -5270,6 +5874,8 @@ Scope {
                                 }
                             }
                         }
+                    }
+                    }
                     }
                 }
 
@@ -5293,17 +5899,29 @@ Scope {
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
                         liquid: root.liquidActive
-                        dark: root.effDark
+                        dark: root.panelDarkMode
                         bx: menuPop.x; by: menuPop.y
+                        shadowAmt: 0
+                        flatInner: 1
+                        rimTint: 1
+                        ringW: 1.4
                         cornerR: 14
                         tint: root.glassOpacity
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
                         grain: root.glassGrain
-                        blur: root.glassBlur
+                        blur: 42
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                    }
+                    MenuBorder {
+                        id: menuBorder
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: 14
+                        dark: root.panelDarkMode
+                        tint: root.menuBorderColor
                     }
                     Column {
                         id: menuCol
@@ -5325,7 +5943,7 @@ Scope {
                                     visible: it.isSep
                                     anchors.verticalCenter: parent.verticalCenter
                                     x: 8; width: parent.width - 16; height: 1
-                                    color: pal.sep
+                                    color: panelPal.sep
                                 }
                                 Rectangle {
                                     visible: it.hot
@@ -5338,8 +5956,8 @@ Scope {
                                     x: 11
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "\u2713"
-                                    color: it.hot ? "white" : pal.fg
-                                    font.family: pal.fam
+                                    color: it.hot ? "white" : panelPal.fg
+                                    font.family: panelPal.fam
                                     font.pixelSize: 13
                                 }
                                 Text {
@@ -5348,9 +5966,9 @@ Scope {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width - x - 12 - (sc.visible ? sc.implicitWidth + 12 : 0)
                                     elide: Text.ElideRight
-                                    text: it.isSep ? "" : (it.armedNow ? "Click again to confirm" : it.modelData.label)
-                                    color: it.hot ? "white" : (it.off ? pal.fg2 : pal.fg)
-                                    font.family: pal.fam
+                                    text: it.isSep ? "" : (it.armedNow ? I18n.tr("Click again to confirm") : I18n.tr(it.modelData.label))
+                                    color: it.hot ? "white" : (it.off ? panelPal.fg2 : panelPal.fg)
+                                    font.family: panelPal.fam
                                     font.pixelSize: 13
                                 }
                                 Text {
@@ -5360,8 +5978,8 @@ Scope {
                                     anchors.rightMargin: 12
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: it.isSep ? "" : (it.modelData.shortcut || "")
-                                    color: it.hot ? Qt.rgba(1, 1, 1, 0.8) : pal.fg2
-                                    font.family: pal.fam
+                                    color: it.hot ? Qt.rgba(1, 1, 1, 0.8) : panelPal.fg2
+                                    font.family: panelPal.fam
                                     font.pixelSize: 12
                                 }
                                 MouseArea {
@@ -5418,17 +6036,29 @@ Scope {
                         backdrop: ui.glassSrc
                         shaderUrl: root.glassShaderUrl
                         liquid: root.liquidActive
-                        dark: root.effDark
+                        dark: root.panelDarkMode
                         bx: trayPop.x; by: trayPop.y
+                        shadowAmt: 0
+                        flatInner: 1
+                        rimTint: 1
+                        ringW: 1.4
                         cornerR: 14
                         tint: root.glassOpacity
                         thickness: 22
                         strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
                         grain: root.glassGrain
-                        blur: root.glassBlur
+                        blur: 42
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                    }
+                    MenuBorder {
+                        id: trayBorder
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: 14
+                        dark: root.panelDarkMode
+                        tint: root.menuBorderColor
                     }
 
                     Flickable {
@@ -5464,8 +6094,8 @@ Scope {
                                     width: parent.width - 24
                                     elide: Text.ElideRight
                                     text: "\u2039  " + (ui.trayStack.length > 0 ? trayPop.clean(ui.trayStack[ui.trayStack.length - 1].text) : "")
-                                    color: backMa.containsMouse ? "white" : pal.fg
-                                    font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold
+                                    color: backMa.containsMouse ? "white" : panelPal.fg
+                                    font.family: panelPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold
                                 }
                                 MouseArea {
                                     id: backMa
@@ -5477,7 +6107,7 @@ Scope {
                             Item {
                                 visible: trayBack.visible
                                 width: trayCol.width; height: visible ? 11 : 0
-                                Rectangle { anchors.verticalCenter: parent.verticalCenter; x: 8; width: parent.width - 16; height: 1; color: pal.sep }
+                                Rectangle { anchors.verticalCenter: parent.verticalCenter; x: 8; width: parent.width - 16; height: 1; color: panelPal.sep }
                             }
 
                             Repeater {
@@ -5495,7 +6125,7 @@ Scope {
                                         visible: te.isSep
                                         anchors.verticalCenter: parent.verticalCenter
                                         x: 8; width: parent.width - 16; height: 1
-                                        color: pal.sep
+                                        color: panelPal.sep
                                     }
                                     Rectangle {
                                         visible: te.hot
@@ -5508,9 +6138,9 @@ Scope {
                                         visible: !te.isSep && te.modelData.buttonType !== QsMenuButtonType.None && te.modelData.checkState === Qt.Checked
                                         x: 10
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: te.modelData.buttonType === QsMenuButtonType.RadioButton ? "\u25CF" : "\u2713"
-                                        color: te.hot ? "white" : (te.live ? pal.fg : pal.fg2)
-                                        font.family: pal.fam
+                                        text: te.modelData.buttonType === QsMenuButtonType.RadioButton ? I18n.tr("\u25CF") : "\u2713"
+                                        color: te.hot ? "white" : (te.live ? panelPal.fg : panelPal.fg2)
+                                        font.family: panelPal.fam
                                         font.pixelSize: te.modelData.buttonType === QsMenuButtonType.RadioButton ? 8 : 13
                                     }
                                     Image {
@@ -5530,8 +6160,8 @@ Scope {
                                         width: parent.width - x - 12 - (te.modelData.hasChildren ? 14 : 0)
                                         elide: Text.ElideRight
                                         text: te.isSep ? "" : trayPop.clean(te.modelData.text)
-                                        color: te.hot ? "white" : (te.live ? pal.fg : pal.fg2)
-                                        font.family: pal.fam
+                                        color: te.hot ? "white" : (te.live ? panelPal.fg : panelPal.fg2)
+                                        font.family: panelPal.fam
                                         font.pixelSize: 13
                                     }
                                     Text {
@@ -5540,8 +6170,8 @@ Scope {
                                         anchors.rightMargin: 10
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: "\u203A"
-                                        color: te.hot ? "white" : pal.fg2
-                                        font.family: pal.fam; font.pixelSize: 15
+                                        color: te.hot ? "white" : panelPal.fg2
+                                        font.family: panelPal.fam; font.pixelSize: 15
                                     }
                                     MouseArea {
                                         id: tma
@@ -5563,65 +6193,42 @@ Scope {
                     }
                 }
 
-                // ═════════ Wi-Fi networks ═════════
-                Item {
-                    id: wifiPop
-                    z: 10
-                    width: 320
-                    height: wifiCol.height + 24
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 8, ui.menuX + 14 - width / 2))
-                    y: root.barHeight + 6
-                    opacity: ui.pop === "wifi" ? 1 : 0
-                    visible: opacity > 0
-                    scale: root.barPopupScale * (ui.pop === "wifi" ? 1 : 0.96)
-                    transformOrigin: Item.Top
-                    Behavior on opacity { NumberAnimation { duration: 110 } }
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-
-                    LGlass {
-                        anchors.fill: parent
-                        backdrop: ui.glassSrc
-                        shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
-                        dark: root.effDark
-                        bx: wifiPop.x; by: wifiPop.y
-                        cornerR: 22
-                        tint: root.glassOpacity
-                        thickness: 24
-                        strength: 0.7 * root.glassLiquid
-                        rim: root.glassRim
-                        grain: root.glassGrain
-                        blur: root.glassBlur
-                        debug: root.glassDebug
-                        onShaderError: root.glassState = "failed"
-                    }
-                    MouseArea { anchors.fill: parent }          // swallow clicks on empty glass so the popover doesn't close
-
+                // ═════════ Wi-Fi list (shared by the top-bar popover and the Control Center page) ═════════
+                Component {
+                    id: wifiContent
                     Column {
                         id: wifiCol
-                        x: 12; y: 12
-                        width: parent.width - 24
+                        property var pp: pal                // palette: the panel palette in the popover, ccPal in the Control Center
+                        property bool showBack: false       // Control Center page: show the back arrow
+                        signal back()
+                        width: parent ? parent.width : 296
                         spacing: 6
 
                         // header: title + on/off switch
                         Item {
                             width: parent.width; height: 32
+                            Item {
+                                visible: wifiCol.showBack
+                                x: 0; width: 30; height: parent.height
+                                Glyph { anchors.centerIn: parent; width: 12; height: 12; kind: "chevL"; color: pp.fg }
+                                MouseArea { anchors.fill: parent; onClicked: wifiCol.back() }
+                            }
                             Text {
-                                x: 6; anchors.verticalCenter: parent.verticalCenter
-                                text: "Wi-Fi"
-                                color: pal.fg
-                                font.family: pal.fam; font.pixelSize: 15; font.weight: Font.DemiBold
+                                x: wifiCol.showBack ? 30 : 6; anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr("Wi-Fi")
+                                color: pp.fg
+                                font.family: pp.fam; font.pixelSize: 15; font.weight: Font.DemiBold
                             }
                             PSwitch {
-                                t: pal
+                                t: pp
                                 anchors.right: parent.right; anchors.rightMargin: 4
                                 anchors.verticalCenter: parent.verticalCenter
                                 checked: root.wifiOn
                                 onToggled: { root.toggleWifi(); wifiAfter.restart(); }
                             }
                         }
-                        Rectangle { width: parent.width; height: 1; color: pal.sep }
-                        Text { visible: root.otherConnections.length>0; width:parent.width; leftPadding:6; text:"Ethernet & VPN"; color:pal.fg2; font.family:pal.fam; font.pixelSize:11; font.weight:Font.DemiBold }
+                        Rectangle { width: parent.width; height: 1; color: pp.sep }
+                        Text { visible: root.otherConnections.length>0; width:parent.width; leftPadding:6; text:I18n.tr("Ethernet & VPN"); color:pp.fg2; font.family:pp.fam; font.pixelSize:11; font.weight:Font.DemiBold }
                         Column {
                             width: parent.width
                             Repeater {
@@ -5629,9 +6236,9 @@ Scope {
                                 delegate: Item {
                                     required property var modelData
                                     width: parent.width; height: 30
-                                    Rectangle { anchors.fill:parent; radius:8; color:connMa.containsMouse?pal.hover:"transparent" }
-                                    Glyph { x:8; anchors.verticalCenter:parent.verticalCenter; width:14; height:14; kind:modelData.type==="vpn"?"lock":"wifi"; color:pal.fg }
-                                    Text { x:30; anchors.verticalCenter:parent.verticalCenter; width:parent.width-42; elide:Text.ElideRight; text:modelData.name+(modelData.active?" · Connected":""); color:pal.fg; font.family:pal.fam; font.pixelSize:12 }
+                                    Rectangle { anchors.fill:parent; radius:8; color:connMa.containsMouse?pp.hover:"transparent" }
+                                    Glyph { x:8; anchors.verticalCenter:parent.verticalCenter; width:14; height:14; kind:modelData.type==="vpn"?"lock":"wifi"; color:pp.fg }
+                                    Text { x:30; anchors.verticalCenter:parent.verticalCenter; width:parent.width-42; elide:Text.ElideRight; text:modelData.name+(modelData.active?I18n.tr(" · Connected"):""); color:pp.fg; font.family:pp.fam; font.pixelSize:12 }
                                     MouseArea { id:connMa; anchors.fill:parent; hoverEnabled:true; onClicked:root.toggleConnection(modelData) }
                                 }
                             }
@@ -5641,24 +6248,24 @@ Scope {
                             visible: !root.wifiOn
                             width: parent.width; height: 56
                             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            text: "Wi-Fi is turned off"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 13
+                            text: I18n.tr("Wi-Fi is turned off")
+                            color: pp.fg2
+                            font.family: pp.fam; font.pixelSize: 13
                         }
                         Text {
                             visible: root.wifiOn && root.wifiNets.length === 0
                             width: parent.width; height: 56
                             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            text: root.wifiScanning ? "Searching\u2026" : "No networks found"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 13
+                            text: root.wifiScanning ? I18n.tr("Searching\u2026") : I18n.tr("No networks found")
+                            color: pp.fg2
+                            font.family: pp.fam; font.pixelSize: 13
                         }
                         Text {
                             visible: root.wifiOn && root.wifiNets.length > 0
                             leftPadding: 6
-                            text: "Networks"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 11; font.weight: Font.DemiBold
+                            text: I18n.tr("Networks")
+                            color: pp.fg2
+                            font.family: pp.fam; font.pixelSize: 11; font.weight: Font.DemiBold
                         }
 
                         // the list
@@ -5697,7 +6304,7 @@ Scope {
                                                 x: 9; anchors.verticalCenter: parent.verticalCenter
                                                 width: 14; height: 14
                                                 kind: "check"
-                                                color: wma.containsMouse ? "white" : pal.fg
+                                                color: wma.containsMouse ? "white" : pp.fg
                                             }
                                             Text {
                                                 x: 30
@@ -5705,25 +6312,25 @@ Scope {
                                                 width: parent.width - 30 - 96
                                                 elide: Text.ElideRight
                                                 text: nr.modelData.ssid
-                                                color: wma.containsMouse ? "white" : pal.fg
-                                                font.family: pal.fam; font.pixelSize: 13
+                                                color: wma.containsMouse ? "white" : pp.fg
+                                                font.family: pp.fam; font.pixelSize: 13
                                                 font.weight: nr.modelData.inUse ? Font.DemiBold : Font.Normal
                                             }
                                             Text {
                                                 visible: nr.busy
                                                 anchors.right: parent.right; anchors.rightMargin: 12
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: "Connecting\u2026"
-                                                color: pal.fg2
-                                                font.family: pal.fam; font.pixelSize: 12
+                                                text: I18n.tr("Connecting\u2026")
+                                                color: pp.fg2
+                                                font.family: pp.fam; font.pixelSize: 12
                                             }
                                             Text {
                                                 visible: !nr.busy && nr.modelData.inUse && wma.containsMouse
                                                 anchors.right: parent.right; anchors.rightMargin: 12
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: "Disconnect"
+                                                text: I18n.tr("Disconnect")
                                                 color: "white"
-                                                font.family: pal.fam; font.pixelSize: 12
+                                                font.family: pp.fam; font.pixelSize: 12
                                             }
                                             Row {
                                                 visible: !nr.busy && !(nr.modelData.inUse && wma.containsMouse)
@@ -5735,13 +6342,13 @@ Scope {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 13; height: 13
                                                     kind: "lock"
-                                                    color: wma.containsMouse ? "white" : pal.fg2
+                                                    color: wma.containsMouse ? "white" : pp.fg2
                                                 }
                                                 Glyph {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     width: 16; height: 16
                                                     kind: "wifi"; level: root.sigLevel(nr.modelData.signal)
-                                                    color: wma.containsMouse ? "white" : pal.fg
+                                                    color: wma.containsMouse ? "white" : pp.fg
                                                 }
                                             }
                                             MouseArea {
@@ -5760,15 +6367,15 @@ Scope {
                                             Rectangle {
                                                 x: 30; y: 3
                                                 width: parent.width - 30 - 4; height: 32; radius: 10
-                                                color: pal.btnOff
+                                                color: pp.btnOff
                                             }
                                             Text {
                                                 x: 42; y: 3; height: 32
                                                 verticalAlignment: Text.AlignVCenter
                                                 visible: pw.text === ""
-                                                text: "Password"
-                                                color: pal.fg3
-                                                font.family: pal.fam; font.pixelSize: 13
+                                                text: I18n.tr("Password")
+                                                color: pp.fg3
+                                                font.family: pp.fam; font.pixelSize: 13
                                             }
                                             TextInput {
                                                 id: pw
@@ -5777,10 +6384,10 @@ Scope {
                                                 verticalAlignment: TextInput.AlignVCenter
                                                 clip: true
                                                 echoMode: TextInput.Password
-                                                color: pal.fg
+                                                color: pp.fg
                                                 selectionColor: root.accent
                                                 selectedTextColor: "white"
-                                                font.family: pal.fam; font.pixelSize: 13
+                                                font.family: pp.fam; font.pixelSize: 13
                                                 onVisibleChanged: if (visible) { text = ""; forceActiveFocus(); }
                                                 Keys.onPressed: event => {
                                                     if (event.key === Qt.Key_Escape) { ui.wifiPrompt = ""; event.accepted = true; }
@@ -5793,9 +6400,9 @@ Scope {
                                                 anchors.right: parent.right; anchors.rightMargin: 16
                                                 y: 3; height: 32
                                                 verticalAlignment: Text.AlignVCenter
-                                                text: "Join"
-                                                color: pw.text.length > 0 ? root.accent : pal.fg3
-                                                font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold
+                                                text: I18n.tr("Join")
+                                                color: pw.text.length > 0 ? root.accent : pp.fg3
+                                                font.family: pp.fam; font.pixelSize: 13; font.weight: Font.DemiBold
                                                 MouseArea {
                                                     anchors.fill: parent; anchors.margins: -6
                                                     onClicked: ui.wifiSubmit(nr.modelData.ssid, pw.text)
@@ -5814,10 +6421,10 @@ Scope {
                             wrapMode: Text.WordWrap
                             text: root.wifiError
                             color: "#FF6961"
-                            font.family: pal.fam; font.pixelSize: 12
+                            font.family: pp.fam; font.pixelSize: 12
                         }
 
-                        Rectangle { width: parent.width; height: 1; color: pal.sep }
+                        Rectangle { width: parent.width; height: 1; color: pp.sep }
                         Item {
                             width: parent.width; height: 30
                             Rectangle {
@@ -5827,9 +6434,9 @@ Scope {
                             }
                             Text {
                                 x: 10; anchors.verticalCenter: parent.verticalCenter
-                                text: "Wi-Fi Settings\u2026"
-                                color: wsa.containsMouse ? "white" : pal.fg
-                                font.family: pal.fam; font.pixelSize: 13
+                                text: I18n.tr("Wi-Fi Settings\u2026")
+                                color: wsa.containsMouse ? "white" : pp.fg
+                                font.family: pp.fam; font.pixelSize: 13
                             }
                             MouseArea {
                                 id: wsa
@@ -5841,81 +6448,135 @@ Scope {
                     }
                 }
 
-                // ═════════ bluetooth popover ═════════
+                // ═════════ Wi-Fi networks ═════════
                 Item {
-                    id: btPop
+                    id: wifiPop
                     z: 10
-                    width: 320
-                    height: btCol.height + 24
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 8, ui.menuX + 14 - width / 2))
-                    y: root.barHeight + 6
-                    opacity: ui.pop === "bt" ? 1 : 0
-                    visible: opacity > 0
-                    scale: root.barPopupScale * (ui.pop === "bt" ? 1 : 0.96)
-                    transformOrigin: Item.Top
-                    Behavior on opacity { NumberAnimation { duration: 110 } }
-                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    // ── morph: the popover is ONE glass shape that grows out of the Wi-Fi icon (or the Control Center tile)
+                    // into the full menu, while the whole thing starts out of focus and sharpens as it opens. Closing folds it
+                    // back into the icon and blurs it out again.
+                    readonly property real ps: root.barPopupScale
+                    readonly property real fullW: 320
+                    readonly property real fullH: (wifiLoad.item ? wifiLoad.item.height : 120) + 24
+                    readonly property bool fromCC: ui.menuX >= ui.width - 1
+                    // the rectangle it grows from (in screen px)
+                    readonly property real srcW: fromCC ? 44 : 26
+                    readonly property real srcH: fromCC ? 30 : 22
+                    readonly property real srcX: fromCC ? ui.width - 64 : ui.menuX + 1
+                    readonly property real srcY: fromCC ? root.barHeight + 36 : Math.max(0, (root.barHeight - 22) / 2)
+                    // the rectangle it grows into
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX + 14 - fullW * ps / 2))
+                    readonly property real dstY: root.barHeight + 6
 
-                    LGlass {
-                        anchors.fill: parent
-                        backdrop: glassBackdrop.item
-                        shaderUrl: root.glassShaderUrl
-                        liquid: root.liquidActive
-                        dark: root.darkMode
-                        bx: btPop.x; by: btPop.y
-                        cornerR: 22
-                        tint: root.glassOpacity
-                        thickness: 24
-                        strength: 0.7 * root.glassLiquid
-                        rim: root.glassRim
-                        grain: root.glassGrain
-                        blur: root.glassBlur
-                        debug: root.glassDebug
-                        onShaderError: root.glassState = "failed"
+                    readonly property bool opening: ui.pop === "wifi"
+                    property real openT: opening ? 1 : 0
+                    Behavior on openT {
+                        NumberAnimation {
+                            duration: wifiPop.opening ? 520 : 220
+                            easing.type: wifiPop.opening ? Easing.OutBack : Easing.InOutCubic
+                            easing.overshoot: 0.7
+                        }
                     }
-                    MouseArea { anchors.fill: parent }
+                    // clamped copy for things that must not overshoot
+                    readonly property real t: Math.max(0, Math.min(1, openT))
+                    // the size follows openT (so the spring overshoots a touch), the content fades in a little later
+                    readonly property real contentT: Math.max(0, Math.min(1, (openT - 0.28) / 0.55))
 
+                    width: (srcW + (fullW * ps - srcW) * openT) / ps
+                    height: (srcH + (fullH * ps - srcH) * openT) / ps
+                    x: srcX + (dstX - srcX) * openT
+                    y: srcY + (dstY - srcY) * openT
+                    opacity: Math.min(1, t * 4)
+                    visible: openT > 0.002
+                    scale: ps
+                    transformOrigin: Item.TopLeft
+
+                    // morph blur: only exists while the animation runs, so the open popover is drawn directly (crisp text)
+                    readonly property real blurAmt: Math.pow(1 - t, 1.3)
+                    readonly property bool morphing: openT > 0.002 && Math.abs(openT - 1) > 0.002
+                    layer.enabled: morphing
+                    layer.smooth: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 48
+                        blur: wifiPop.blurAmt * 0.9
+                        autoPaddingEnabled: true
+                    }
+
+                    PopGlassCtx { id: wifiPopGlass; pop: wifiPop; fromCC: wifiPop.fromCC; frame: ui; source: ui.glassSrc; fullW: wifiPop.fullW; fullH: wifiPop.fullH }
+                    GGlass { anchors.fill: parent; gx: wifiPopGlass.ctx; cornerR: Math.min(26, 8 + 18 * wifiPop.t); thickness: 22; shadowAmt: 0; flatInner: 1 }
+                    CornerBorder { z: 2; anchors.fill: parent; cornerR: Math.min(26, 8 + 18 * wifiPop.t); dark: wifiPopGlass.ctx.dark; tint: wifiPopGlass.ctx.borderTint; amount: wifiPopGlass.ctx.borderAmount; lineW: 0.8; fade: false }
+                    MouseArea { anchors.fill: parent }          // swallow clicks on empty glass so the popover doesn't close
+
+                    // the content keeps its full size and is revealed by the growing glass (clipped), fading in and settling
+                    // up from a few px below, so nothing reflows while the shape morphs
+                    Item {
+                        id: wifiClip
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        clip: true
+                    Loader {
+                        id: wifiLoad
+                        sourceComponent: wifiContent
+                        x: 11; y: 11 + 10 * (1 - wifiPop.contentT)
+                        width: wifiPop.fullW - 24
+                        opacity: wifiPop.contentT
+                    }
+                    }
+                }
+
+                // ═════════ Bluetooth list (shared by the top-bar popover and the Control Center page) ═════════
+                Component {
+                    id: btContent
                     Column {
                         id: btCol
-                        x: 12; y: 12
-                        width: parent.width - 24
+                        property var pp: pal                // palette: the panel palette in the popover, ccPal in the Control Center
+                        property bool showBack: false       // Control Center page: show the back arrow
+                        signal back()
+                        width: parent ? parent.width : 296
                         spacing: 6
 
                         // header: title + on/off switch
                         Item {
                             width: parent.width; height: 32
+                            Item {
+                                visible: btCol.showBack
+                                x: 0; width: 30; height: parent.height
+                                Glyph { anchors.centerIn: parent; width: 12; height: 12; kind: "chevL"; color: pp.fg }
+                                MouseArea { anchors.fill: parent; onClicked: btCol.back() }
+                            }
                             Text {
-                                x: 6; anchors.verticalCenter: parent.verticalCenter
-                                text: "Bluetooth"
-                                color: pal.fg
-                                font.family: pal.fam; font.pixelSize: 15; font.weight: Font.DemiBold
+                                x: btCol.showBack ? 30 : 6; anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr("Bluetooth")
+                                color: pp.fg
+                                font.family: pp.fam; font.pixelSize: 15; font.weight: Font.DemiBold
                             }
                             PSwitch {
-                                t: pal
+                                t: pp
                                 anchors.right: parent.right; anchors.rightMargin: 4
                                 anchors.verticalCenter: parent.verticalCenter
                                 checked: root.btOn
                                 onToggled: root.toggleBt()
                             }
                         }
-                        Rectangle { width: parent.width; height: 1; color: pal.sep }
+                        Rectangle { width: parent.width; height: 1; color: pp.sep }
 
                         Text {
                             visible: !root.btOn
                             width: parent.width; height: 56
                             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            text: "Bluetooth is turned off"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 13
+                            text: I18n.tr("Bluetooth is turned off")
+                            color: pp.fg2
+                            font.family: pp.fam; font.pixelSize: 13
                         }
 
                         Text {
                             visible: root.btOn && root.btDevices.length === 0
                             width: parent.width; height: 56
                             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            text: root.btScanning ? "Searching for devices\u2026" : "No devices found"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 13
+                            text: root.btScanning ? I18n.tr("Searching for devices\u2026") : I18n.tr("No devices found")
+                            color: pp.fg2
+                            font.family: pp.fam; font.pixelSize: 13
                         }
 
                         Item {
@@ -5923,9 +6584,9 @@ Scope {
                             width: parent.width; height: 22
                             Text {
                                 x: 6; anchors.verticalCenter: parent.verticalCenter
-                                text: "Devices"
-                                color: pal.fg2
-                                font.family: pal.fam; font.pixelSize: 11; font.weight: Font.DemiBold
+                                text: I18n.tr("Devices")
+                                color: pp.fg2
+                                font.family: pp.fam; font.pixelSize: 11; font.weight: Font.DemiBold
                             }
                             Row {
                                 anchors.right: parent.right; anchors.rightMargin: 6
@@ -5933,13 +6594,13 @@ Scope {
                                 spacing: 4
                                 Text {
                                     visible: root.btScanning
-                                    text: "Scanning\u2026"
-                                    color: pal.fg2; font.family: pal.fam; font.pixelSize: 11
+                                    text: I18n.tr("Scanning\u2026")
+                                    color: pp.fg2; font.family: pp.fam; font.pixelSize: 11
                                 }
                                 Text {
                                     visible: !root.btScanning
-                                    text: "Scan"
-                                    color: root.accent; font.family: pal.fam; font.pixelSize: 11; font.weight: Font.DemiBold
+                                    text: I18n.tr("Scan")
+                                    color: root.accent; font.family: pp.fam; font.pixelSize: 11; font.weight: Font.DemiBold
                                     MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.scanBt() }
                                 }
                             }
@@ -5979,14 +6640,14 @@ Scope {
                                             x: 9; anchors.verticalCenter: parent.verticalCenter
                                             width: 14; height: 14
                                             kind: "check"
-                                            color: bma.containsMouse ? "white" : pal.fg
+                                            color: bma.containsMouse ? "white" : pp.fg
                                         }
                                         Glyph {
                                             visible: !devRow.modelData.connected
                                             x: 9; anchors.verticalCenter: parent.verticalCenter
                                             width: 14; height: 14
                                             kind: devRow.modelData.icon || "bluetooth"
-                                            color: bma.containsMouse ? "white" : pal.fg2
+                                            color: bma.containsMouse ? "white" : pp.fg2
                                         }
 
                                         Text {
@@ -5995,8 +6656,8 @@ Scope {
                                             width: parent.width - 30 - 100
                                             elide: Text.ElideRight
                                             text: devRow.modelData.name || devRow.modelData.mac
-                                            color: bma.containsMouse ? "white" : pal.fg
-                                            font.family: pal.fam; font.pixelSize: 13
+                                            color: bma.containsMouse ? "white" : pp.fg
+                                            font.family: pp.fam; font.pixelSize: 13
                                             font.weight: devRow.modelData.connected ? Font.DemiBold : Font.Normal
                                         }
 
@@ -6004,45 +6665,45 @@ Scope {
                                             visible: devRow.busy
                                             anchors.right: parent.right; anchors.rightMargin: 12
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: devRow.modelData.connected ? "Disconnecting\u2026" : "Connecting\u2026"
-                                            color: bma.containsMouse ? "white" : pal.fg2
-                                            font.family: pal.fam; font.pixelSize: 12
+                                            text: devRow.modelData.connected ? I18n.tr("Disconnecting\u2026") : I18n.tr("Connecting\u2026")
+                                            color: bma.containsMouse ? "white" : pp.fg2
+                                            font.family: pp.fam; font.pixelSize: 12
                                         }
 
                                         Text {
                                             visible: !devRow.busy && devRow.modelData.connected && bma.containsMouse
                                             anchors.right: parent.right; anchors.rightMargin: 12
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Disconnect"
+                                            text: I18n.tr("Disconnect")
                                             color: "white"
-                                            font.family: pal.fam; font.pixelSize: 12
+                                            font.family: pp.fam; font.pixelSize: 12
                                         }
 
                                         Text {
                                             visible: !devRow.busy && devRow.modelData.connected && !bma.containsMouse
                                             anchors.right: parent.right; anchors.rightMargin: 12
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Connected"
-                                            color: pal.fg2
-                                            font.family: pal.fam; font.pixelSize: 12
+                                            text: I18n.tr("Connected")
+                                            color: pp.fg2
+                                            font.family: pp.fam; font.pixelSize: 12
                                         }
 
                                         Text {
                                             visible: !devRow.busy && !devRow.modelData.connected && bma.containsMouse
                                             anchors.right: parent.right; anchors.rightMargin: 12
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Connect"
+                                            text: I18n.tr("Connect")
                                             color: "white"
-                                            font.family: pal.fam; font.pixelSize: 12
+                                            font.family: pp.fam; font.pixelSize: 12
                                         }
 
                                         Text {
                                             visible: !devRow.busy && !devRow.modelData.connected && !bma.containsMouse && devRow.modelData.paired
                                             anchors.right: parent.right; anchors.rightMargin: 12
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Paired"
-                                            color: pal.fg2
-                                            font.family: pal.fam; font.pixelSize: 12
+                                            text: I18n.tr("Paired")
+                                            color: pp.fg2
+                                            font.family: pp.fam; font.pixelSize: 12
                                         }
 
                                         MouseArea {
@@ -6064,10 +6725,10 @@ Scope {
                             wrapMode: Text.WordWrap
                             text: root.btError
                             color: "#FF6961"
-                            font.family: pal.fam; font.pixelSize: 12
+                            font.family: pp.fam; font.pixelSize: 12
                         }
 
-                        Rectangle { width: parent.width; height: 1; color: pal.sep }
+                        Rectangle { width: parent.width; height: 1; color: pp.sep }
                         Item {
                             width: parent.width; height: 30
                             Rectangle {
@@ -6077,9 +6738,9 @@ Scope {
                             }
                             Text {
                                 x: 10; anchors.verticalCenter: parent.verticalCenter
-                                text: "Bluetooth Settings\u2026"
-                                color: bsa.containsMouse ? "white" : pal.fg
-                                font.family: pal.fam; font.pixelSize: 13
+                                text: I18n.tr("Bluetooth Settings\u2026")
+                                color: bsa.containsMouse ? "white" : pp.fg
+                                font.family: pp.fam; font.pixelSize: 13
                             }
                             MouseArea {
                                 id: bsa
@@ -6087,6 +6748,76 @@ Scope {
                                 hoverEnabled: true
                                 onClicked: { ui.pop = ""; root.openSettings("bluetooth"); }
                             }
+                        }
+                    }
+                }
+
+                // ═════════ bluetooth popover ═════════
+                Item {
+                    id: btPop
+                    z: 10
+                    // same morph as the Wi-Fi popover: one glass shape grows out of the bluetooth icon, blurred, and sharpens
+                    // as it opens; closing folds it back into the icon.
+    readonly property real ps: root.barPopupScale
+                    readonly property real fullW: 320
+                    readonly property real fullH: (btLoad.item ? btLoad.item.height : 120) + 24
+                    // the rectangle it grows from (the bar icon, in screen px) and the one it grows into
+                    readonly property real srcW: 26
+                    readonly property real srcH: 22
+                    readonly property real srcX: ui.menuX + 1
+                    readonly property real srcY: Math.max(0, (root.barHeight - srcH) / 2)
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX + 14 - fullW * ps / 2))
+                    readonly property real dstY: root.barHeight + 6
+
+                    readonly property bool opening: ui.pop === "bt"
+                    property real openT: opening ? 1 : 0
+                    Behavior on openT {
+                        NumberAnimation {
+                            duration: btPop.opening ? 520 : 220
+                            easing.type: btPop.opening ? Easing.OutBack : Easing.InOutCubic
+                            easing.overshoot: 0.7
+                        }
+                    }
+                    readonly property real t: Math.max(0, Math.min(1, openT))
+                    readonly property real contentT: Math.max(0, Math.min(1, (openT - 0.28) / 0.55))
+
+                    width: (srcW + (fullW * ps - srcW) * openT) / ps
+                    height: (srcH + (fullH * ps - srcH) * openT) / ps
+                    x: srcX + (dstX - srcX) * openT
+                    y: srcY + (dstY - srcY) * openT
+                    opacity: Math.min(1, t * 4)
+                    visible: openT > 0.002
+                    scale: ps
+                    transformOrigin: Item.TopLeft
+
+                    // morph blur: only exists while the animation runs, so the open panel is drawn directly (crisp text)
+                    readonly property real blurAmt: Math.pow(1 - t, 1.3)
+                    readonly property bool morphing: openT > 0.002 && Math.abs(openT - 1) > 0.002
+                    layer.enabled: morphing
+                    layer.smooth: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 48
+                        blur: btPop.blurAmt * 0.9
+                        autoPaddingEnabled: true
+                    }
+
+                    PopGlassCtx { id: btPopGlass; pop: btPop; frame: ui; source: ui.glassSrc; fullW: btPop.fullW; fullH: btPop.fullH }
+                    GGlass { anchors.fill: parent; gx: btPopGlass.ctx; cornerR: Math.min(26, 8 + 18 * btPop.t); thickness: 22; shadowAmt: 0; flatInner: 1 }
+                    CornerBorder { z: 2; anchors.fill: parent; cornerR: Math.min(26, 8 + 18 * btPop.t); dark: btPopGlass.ctx.dark; tint: btPopGlass.ctx.borderTint; amount: btPopGlass.ctx.borderAmount; lineW: 0.8; fade: false }
+                    MouseArea { anchors.fill: parent }
+
+                    // the content keeps its full size and is revealed by the growing glass (clipped)
+                    Item {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        clip: true
+                        Loader {
+                            id: btLoad
+                            sourceComponent: btContent
+                            x: 11; y: 11 + 10 * (1 - btPop.contentT)
+                            width: btPop.fullW - 24
+                            opacity: btPop.contentT
                         }
                     }
                 }
@@ -6115,13 +6846,24 @@ Scope {
                         bx: cal.x; by: cal.y
                         cornerR: 24
                         tint: root.glassOpacity
-                        thickness: 26
-                        strength: 0.8 * root.glassLiquid
+                        thickness: 22
+                        strength: 0.55 * root.glassLiquid
                         rim: root.glassRim
                         grain: root.glassGrain
-                        blur: root.glassBlur
+                        blur: 42
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        shadowAmt: 0
+                        flatInner: 1
+                        rimTint: 1
+                        ringW: 1.4
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: 24
+                        dark: root.effDark
+                        tint: root.menuBorderColor
                     }
                     Column {
                         id: calCol
@@ -6130,12 +6872,12 @@ Scope {
                         spacing: 8
 
                         Text {
-                            text: Qt.formatDateTime(clock.date, "dddd")
+                            text: I18n.locale().toString(clock.date, "dddd")
                             color: pal.fg2
                             font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
                         }
                         Text {
-                            text: Qt.formatDateTime(clock.date, "d MMMM yyyy")
+                            text: I18n.locale().toString(clock.date, I18n.tr("d MMMM yyyy"))
                             color: pal.fg
                             font.family: pal.fam; font.pixelSize: 22; font.weight: Font.DemiBold
                         }
@@ -6144,7 +6886,7 @@ Scope {
                             width: parent.width; height: 26
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: Qt.locale().monthName(ui.calMonth, Locale.LongFormat) + " " + ui.calYear
+                                text: I18n.locale().monthName(ui.calMonth, Locale.LongFormat) + " " + ui.calYear
                                 color: pal.fg
                                 font.family: pal.fam; font.pixelSize: 14; font.weight: Font.DemiBold
                             }
@@ -6171,7 +6913,7 @@ Scope {
                                     required property int index
                                     width: calCol.width / 7
                                     horizontalAlignment: Text.AlignHCenter
-                                    text: Qt.locale().dayName((index + (root.weekStartsMonday ? 1 : 0)) % 7, Locale.ShortFormat).substring(0, 2)
+                                    text: I18n.locale().dayName((index + (root.weekStartsMonday ? 1 : 0)) % 7, Locale.ShortFormat).substring(0, 2)
                                     color: pal.fg2
                                     font.family: pal.fam; font.pixelSize: 11; font.weight: Font.DemiBold
                                 }
@@ -6209,8 +6951,8 @@ Scope {
                 Item {
                     id: cc
                     z: 10
-                    width: 340
-                    height: ccCol.height
+                    width: 300
+                    height: ui.ccPage === "" ? ccCol.height : (ui.ccPage === "wifi" ? ccWifiPage.height : ccBtPage.height)
                     x: Math.max(8, ui.width - width - 10)
                     y: root.barHeight + 6
                     // opening (ColorOS 17): the panel springs out from the Control Center button, overshoots a little and
@@ -6227,8 +6969,21 @@ Scope {
                     }
                     opacity: Math.max(0, Math.min(1, openT * 2.2))
                     visible: opacity > 0
-                    scale: root.barPopupScale
+                    // morph: the panel grows out of the button a little while it springs open
+                    scale: root.barPopupScale * (0.94 + 0.06 * Math.min(1.0, openT))
                     transformOrigin: Item.TopRight
+                    // morph blur: the whole panel starts out of focus and sharpens as it opens; on close it blurs out again.
+                    // The layer only exists while the animation runs, so the open panel is drawn directly (crisp text, no extra pass).
+                    readonly property real blurAmt: Math.pow(Math.max(0, 1 - Math.min(1, openT)), 1.4)
+                    readonly property bool morphing: openT > 0.002 && Math.abs(openT - 1) > 0.002
+                    layer.enabled: morphing
+                    layer.smooth: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 40
+                        blur: cc.blurAmt * 0.85
+                        autoPaddingEnabled: true
+                    }
                     // the panel itself never moves above the bar (the menu bar is transparent, so anything that did would
                     // show straight through it). The motion lives in the controls: they slide up into place inside it.
                     onOpeningChanged: if (opening) openSeq++
@@ -6285,11 +7040,16 @@ Scope {
                         frame: ui
                         liquid: root.liquidActive
                         shaderUrl: root.glassShaderUrl
-                        dark: root.effDark
+                        dark: root.ccDark
                         // macOS style: the panel is the glass, so each control only keeps a faint shape on top of it
                         tint: root.ccStyle === "macos" ? root.glassOpacity * 0.30 : root.glassOpacity
                         strength: root.ccStyle === "macos" ? root.glassLiquid * 0.30 : root.glassLiquid
-                        rim: root.ccStyle === "macos" ? root.glassRim * 0.45 : root.glassRim
+                        rim: root.ccStyle === "macos" ? root.glassRim * 0.10 : root.glassRim * 0.25
+                        rimTint: 1
+                        ringW: 0                            // the border is the QML CornerBorder now (see component CornerBorder)
+                        borderTint: root.menuBorderColor
+                        borderAmount: 1                     // strength of the CornerBorder on every tile / button / the panel
+                        whiteEdge: false                    // no light inner ring on the non-liquid fallback pane
                         grain: root.glassGrain
                         blur: root.glassBlur
                         debug: root.glassDebug
@@ -6317,33 +7077,33 @@ Scope {
                     Component {
                         id: cWifi
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.wifiOn
+                            onClicked: root.toggleWifi()
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg
+                                plain: true
+                                t: ccPal; gx: ccg
                                 x: 12; anchors.verticalCenter: parent.verticalCenter
                                 kind: "wifi"; level: root.wifiOn ? (root.wifiLevel || 3) : 3
                                 on: root.wifiOn
-                                onClicked: root.toggleWifi()
                             }
                             MouseArea {
-                                x: 56; width: parent.width - 56; height: parent.height
-                                onClicked: ui.openPop("wifi", ui.width)
-                            }
-                            Glyph {
-                                x: parent.width - 22; anchors.verticalCenter: parent.verticalCenter
-                                width: 12; height: 12
-                                kind: "chevR"; color: pal.fg2
+                                // only the arrow end opens the Wi-Fi page inside the Control Center; the rest of the tile switches Wi-Fi on / off
+                                x: parent.width - 48; width: 48; height: parent.height
+                                onClicked: { root.wifiError = ""; root.scanWifi(); root.refreshConnections(); ui.ccPage = "wifi"; }
                             }
                             Column {
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 62 - 24
                                 spacing: 1
-                                Text { text: "Wi-Fi"; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                Text { text: I18n.tr("Wi-Fi"); color: tl.fg; font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
                                 MorphText {
                                     animateWidth: false; duration: 420
                                     width: parent.width; elide: Text.ElideRight
-                                    text: !root.wifiOn ? "Off" : (root.wifiSsid !== "" ? root.wifiSsid : "Not Connected")
-                                    color: pal.fg2; font.family: pal.fam; font.pixelSize: 12
+                                    text: !root.wifiOn ? I18n.tr("Off") : (root.wifiSsid !== "" ? root.wifiSsid : I18n.tr("Not Connected"))
+                                    color: tl.fg2; font.family: ccPal.fam; font.pixelSize: 12
                                 }
                             }
                         }
@@ -6351,39 +7111,38 @@ Scope {
                     Component {
                         id: cBt
                         CCTile {
+                            clickable: true
+                            on: root.btOn
+                            onClicked: root.toggleBt()
                             id: btTile
-                            // wide (2x1) tiles get the label; `slot` lives in the delegate, out of reach here
-                            readonly property bool wide: width > height * 1.5
-                            t: pal; gx: ccg
+                            t: ccPal; gx: ccg
+                            // one grid cell is ~70 px wide, two are ~150 px: wide = shows the label and opens the device list
+                            // (the cell's `slot` is not visible from inside this Component, which left the icon unplaced)
+                            readonly property bool wide: width > 110
                             CCBtn {
-                                t: pal; gx: ccg
+                                plain: true
+                                t: ccPal; gx: ccg
                                 x: btTile.wide ? 12 : (parent.width - width) / 2
                                 anchors.verticalCenter: parent.verticalCenter
                                 kind: "bluetooth"; on: root.btOn
-                                onClicked: root.toggleBt()
                             }
                             MouseArea {
                                 visible: btTile.wide
-                                x: 56; width: parent.width - 56; height: parent.height
-                                onClicked: ui.openPop("bt", ui.width)
-                            }
-                            Glyph {
-                                visible: btTile.wide
-                                x: parent.width - 22; anchors.verticalCenter: parent.verticalCenter
-                                width: 12; height: 12
-                                kind: "chevR"; color: pal.fg2
+                                // only the arrow end opens the Bluetooth page inside the Control Center; the rest of the tile switches Bluetooth on / off
+                                x: parent.width - 48; width: 48; height: parent.height
+                                onClicked: { root.btError = ""; root.scanBt(); root.refreshBt(); ui.ccPage = "bt"; }
                             }
                             Column {
                                 visible: btTile.wide
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 62 - 24
                                 spacing: 1
-                                Text { text: "Bluetooth"; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                Text { text: I18n.tr("Bluetooth"); color: btTile.fg; font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
                                 MorphText {
                                     animateWidth: false; duration: 420
                                     width: parent.width; elide: Text.ElideRight
-                                    text: !root.btOn ? "Off" : (root.btConnected > 0 ? (root.btConnectedName || (root.btConnected + " Connected")) : "Not Connected")
-                                    color: pal.fg2; font.family: pal.fam; font.pixelSize: 12
+                                    text: !root.btOn ? I18n.tr("Off") : (root.btConnected > 0 ? (root.btConnectedName || (root.btConnected + I18n.tr(" Connected"))) : I18n.tr("Not Connected"))
+                                    color: btTile.fg2; font.family: ccPal.fam; font.pixelSize: 12
                                 }
                             }
                         }
@@ -6391,101 +7150,132 @@ Scope {
                     Component {
                         id: cAirplane
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.airplane
+                            onClicked: root.toggleAirplane()
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg; anchors.centerIn: parent
+                                plain: true
+                                t: ccPal; gx: ccg; anchors.centerIn: parent
                                 kind: "airplane"; on: root.airplane
-                                onClicked: root.toggleAirplane()
                             }
                         }
                     }
                     Component {
                         id: cFocus
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.dnd
+                            onClicked: root.toggleDnd()
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg
+                                plain: true
+                                t: ccPal; gx: ccg
                                 x: 12; anchors.verticalCenter: parent.verticalCenter
                                 kind: "moon"; on: root.dnd
-                                onClicked: root.toggleDnd()
                             }
                             Column {
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 62 - 10
                                 spacing: 1
-                                Text { text: "Focus"; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                MorphText { animateWidth: false; duration: 420; text: root.dnd ? "Do Not Disturb" : "Off"; color: pal.fg2; font.family: pal.fam; font.pixelSize: 12 }
+                                Text { width: parent.width; elide: Text.ElideRight; text: I18n.tr("Focus"); color: tl.fg; font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.dnd ? I18n.tr("On") : I18n.tr("Off"); color: tl.fg2; font.family: ccPal.fam; font.pixelSize: 12 }
                             }
                         }
                     }
                     Component {
                         id: cGaming
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.gaming
+                            onTint: "#30D158"
+                            onClicked: root.gamingMode = !root.gaming
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg
+                                plain: true
+                                t: ccPal; gx: ccg
                                 x: 12; anchors.verticalCenter: parent.verticalCenter
                                 kind: "gamepad"; on: root.gaming; onTint: "#30D158"
-                                onClicked: root.gamingMode = !root.gaming
                             }
                             Column {
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 62 - 10
                                 spacing: 1
-                                Text { width: parent.width; elide: Text.ElideRight; text: "Game Mode"; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.gamingAutoActive && !root.gamingMode ? "On (game detected)" : (root.gaming ? "On" : (root.gamingAuto ? "Auto" : "Off"))
-                                       color: root.gaming ? "#30D158" : pal.fg2; font.family: pal.fam; font.pixelSize: 12 }
+                                Text { width: parent.width; elide: Text.ElideRight; text: I18n.tr("Game Mode"); color: tl.fg; font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.gamingAutoActive && !root.gamingMode ? I18n.tr("On (game detected)") : (root.gaming ? I18n.tr("On") : (root.gamingAuto ? I18n.tr("Auto") : I18n.tr("Off")))
+                                       color: tl.fg2; font.family: ccPal.fam; font.pixelSize: 12 }
                             }
                         }
                     }
                     Component {
                         id: cRecord
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.recording
+                            onTint: "#FF453A"
+                            onClicked: root.toggleRecording()
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg
+                                plain: true
+                                t: ccPal; gx: ccg
                                 x: 12; anchors.verticalCenter: parent.verticalCenter
                                 kind: root.recording ? "stoprec" : "record"; on: root.recording; onTint: "#FF453A"
-                                onClicked: root.toggleRecording()
                             }
                             Column {
                                 x: 62; anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 62 - 10
                                 spacing: 1
-                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.recording ? "Stop" : "Record"; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.recording ? root.recTime() : "Screen"; color: root.recording ? "#FF453A" : pal.fg2; font.family: pal.fam; font.pixelSize: 12 }
+                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.recording ? "Stop" : I18n.tr("Record"); color: tl.fg; font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                MorphText { animateWidth: false; duration: 420; width: parent.width; elide: Text.ElideRight; text: root.recording ? root.recTime() : I18n.tr("Screen"); color: tl.fg2; font.family: ccPal.fam; font.pixelSize: 12 }
                             }
                         }
                     }
                     Component {
                         id: cNight
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.nightOn
+                            onClicked: root.nightOn = !root.nightOn
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg; anchors.centerIn: parent
+                                plain: true
+                                t: ccPal; gx: ccg; anchors.centerIn: parent
                                 kind: "nightshift"; on: root.nightOn
-                                onClicked: root.nightOn = !root.nightOn
                             }
                         }
                     }
                     Component {
                         id: cAwake
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.keepAwake
+                            onClicked: root.keepAwake = !root.keepAwake
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg; anchors.centerIn: parent
+                                plain: true
+                                t: ccPal; gx: ccg; anchors.centerIn: parent
                                 kind: "coffee"; on: root.keepAwake
-                                onClicked: root.keepAwake = !root.keepAwake
                             }
                         }
                     }
                     Component {
                         id: cDark
                         CCTile {
-                            t: pal; gx: ccg
+                            id: tl
+                            clickable: true
+                            on: root.darkMode
+                            onClicked: root.setAppearance(root.darkMode ? "light" : "dark")
+                            t: ccPal; gx: ccg
                             CCBtn {
-                                t: pal; gx: ccg; anchors.centerIn: parent
+                                plain: true
+                                t: ccPal; gx: ccg; anchors.centerIn: parent
                                 kind: "contrast"; on: root.darkMode
-                                onClicked: root.darkMode = !root.darkMode
                             }
                         }
                     }
@@ -6493,14 +7283,14 @@ Scope {
                         id: cNowPlaying
                         CCTile {
                             id: np
-                            t: pal; gx: ccg
+                            t: ccPal; gx: ccg
                             readonly property var pl: root.player
                             Rectangle {
                                 id: art
                                 x: 12; y: 12
                                 width: 52; height: 52; radius: 10
-                                color: pal.btnOff
-                                Glyph { visible: artImg.status !== Image.Ready; anchors.centerIn: parent; width: 22; height: 22; kind: "note"; color: pal.fg2 }
+                                color: ccPal.btnOff
+                                Glyph { visible: artImg.status !== Image.Ready; anchors.centerIn: parent; width: 22; height: 22; kind: "note"; color: ccPal.fg2 }
                                 // `clip: true` only clips to a plain rectangle, so the cover is masked with a rounded shape instead
                                 Item {
                                     id: artMask
@@ -6532,7 +7322,7 @@ Scope {
                                     radius: art.radius
                                     color: "transparent"
                                     border.width: 1
-                                    border.color: pal.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.10)
+                                    border.color: ccPal.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.10)
                                 }
                             }
                             Column {
@@ -6541,15 +7331,15 @@ Scope {
                                 spacing: 1
                                 Text {
                                     width: parent.width; elide: Text.ElideRight
-                                    text: np.pl && np.pl.trackTitle ? np.pl.trackTitle : "Now Playing"
-                                    color: np.pl ? pal.fg : pal.fg2
-                                    font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold
+                                    text: np.pl && np.pl.trackTitle ? np.pl.trackTitle : I18n.tr("Now Playing")
+                                    color: np.pl ? ccPal.fg : ccPal.fg2
+                                    font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.DemiBold
                                 }
                                 Text {
                                     visible: np.pl !== null && np.pl !== undefined
                                     width: parent.width; elide: Text.ElideRight
                                     text: np.pl && np.pl.trackArtist ? np.pl.trackArtist : ""
-                                    color: pal.fg2; font.family: pal.fam; font.pixelSize: 12
+                                    color: ccPal.fg2; font.family: ccPal.fam; font.pixelSize: 12
                                 }
                             }
                             Row {
@@ -6567,7 +7357,7 @@ Scope {
                                             anchors.centerIn: parent
                                             width: 26; height: 26
                                             kind: pbtn.modelData === "play" ? (np.pl && np.pl.isPlaying ? "pause" : "play") : pbtn.modelData
-                                            color: pal.fg
+                                            color: ccPal.fg
                                             scale: pma.pressed ? 0.88 : 1
                                             Behavior on scale { NumberAnimation { duration: 230; easing.type: Easing.OutBack; easing.overshoot: 3.2 } }
                                         }
@@ -6589,15 +7379,18 @@ Scope {
                     Component {
                         id: cDisplay
                         CCTile {
-                            t: pal; gx: ccg
+                            t: ccPal; gx: ccg
                             radius: 26
                             Text {
                                 x: 14; y: 8
-                                text: "Display"
-                                color: pal.fg; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
+                                text: I18n.tr("Display")
+                                color: ccPal.fg; font.family: ccPal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
                             }
+                            HoverHandler { id: tileHovDisplay }
                             CCSlider {
-                                t: pal
+                                tileHover: tileHovDisplay.hovered
+                                t: ccPal
+                                gx: ccg; glassMul: root.ccStyle === "macos" ? 3 : 1
                                 x: 12; y: 28
                                 width: parent.width - 24
                                 value: root.brightness
@@ -6610,15 +7403,18 @@ Scope {
                     Component {
                         id: cSound
                         CCTile {
-                            t: pal; gx: ccg
+                            t: ccPal; gx: ccg
                             radius: 26
                             Text {
                                 x: 14; y: 8
-                                text: "Sound"
-                                color: pal.fg; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
+                                text: I18n.tr("Sound")
+                                color: ccPal.fg; font.family: ccPal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
                             }
+                            HoverHandler { id: tileHovSound }
                             CCSlider {
-                                t: pal
+                                tileHover: tileHovSound.hovered
+                                t: ccPal
+                                gx: ccg; glassMul: root.ccStyle === "macos" ? 3 : 1
                                 x: 12; y: 28
                                 width: parent.width - 24 - 36
                                 value: root.muted ? 0 : root.volume
@@ -6627,8 +7423,9 @@ Scope {
                                 onMoved: v => root.setVolume(v)
                             }
                             CCBtn {
-                                t: pal; gx: ccg
+                                t: ccPal; gx: ccg
                                 d: 28
+                                glass: false
                                 x: parent.width - 12 - 28; y: 28
                                 kind: "speaker"; level: root.muted ? 0 : 3
                                 on: root.muted
@@ -6642,9 +7439,55 @@ Scope {
                     Loader {
                         active: root.ccStyle === "macos"
                         x: -12; y: -12
-                        width: cc.width + 24; height: ccCol.height + 24
+                        width: cc.width + 24; height: cc.height + 24
                         sourceComponent: Item {
                             GGlass { anchors.fill: parent; gx: ccg; cornerR: 24; thickness: 26; strengthMul: 1.0; shadowAmt: 0.6 }
+                            CornerBorder { z: 2; anchors.fill: parent; cornerR: 24; dark: ccg.dark; tint: root.menuBorderColor; amount: ccg.borderAmount; lineW: 0.8 }
+                        }
+                    }
+
+                    // Wi-Fi page: the network list opens inside the Control Center (back arrow in the header) instead of
+                    // switching to the top-bar Wi-Fi popover
+                    Item {
+                        id: ccWifiPage
+                        readonly property bool shown: ui.ccPage === "wifi"
+                        width: parent.width
+                        height: wifiPageLoad.height + 24
+                        opacity: shown ? 1 : 0
+                        visible: opacity > 0.01
+                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                        GGlass { visible: root.ccStyle !== "macos"; anchors.fill: parent; gx: ccg; cornerR: 26; thickness: 22; shadowAmt: 0.45 }
+                        CornerBorder { visible: root.ccStyle !== "macos"; z: 2; anchors.fill: parent; cornerR: 26; dark: ccg.dark; tint: ccg.borderTint; amount: ccg.borderAmount; lineW: 0.8 }
+                        MouseArea { anchors.fill: parent }
+                        Loader {
+                            id: wifiPageLoad
+                            active: ccWifiPage.shown || ccWifiPage.visible
+                            x: 12; y: 12
+                            width: parent.width - 24
+                            sourceComponent: wifiContent
+                            onLoaded: { item.pp = ccPal; item.showBack = true; item.back.connect(function () { ui.ccPage = ""; }); }
+                        }
+                    }
+
+                    // Bluetooth page: the device list opens inside the Control Center, like the Wi-Fi page
+                    Item {
+                        id: ccBtPage
+                        readonly property bool shown: ui.ccPage === "bt"
+                        width: parent.width
+                        height: btPageLoad.height + 24
+                        opacity: shown ? 1 : 0
+                        visible: opacity > 0.01
+                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                        GGlass { visible: root.ccStyle !== "macos"; anchors.fill: parent; gx: ccg; cornerR: 26; thickness: 22; shadowAmt: 0.45 }
+                        CornerBorder { visible: root.ccStyle !== "macos"; z: 2; anchors.fill: parent; cornerR: 26; dark: ccg.dark; tint: ccg.borderTint; amount: ccg.borderAmount; lineW: 0.8 }
+                        MouseArea { anchors.fill: parent }
+                        Loader {
+                            id: btPageLoad
+                            active: ccBtPage.shown || ccBtPage.visible
+                            x: 12; y: 12
+                            width: parent.width - 24
+                            sourceComponent: btContent
+                            onLoaded: { item.pp = ccPal; item.showBack = true; item.back.connect(function () { ui.ccPage = ""; }); }
                         }
                     }
 
@@ -6653,48 +7496,74 @@ Scope {
                         x: 0; y: 0
                         width: parent.width
                         spacing: 10
+                        opacity: ui.ccPage === "" ? 1 : 0
+                        visible: opacity > 0.01
+                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
-                        // ── privacy: which apps use the microphone / camera / screen (only while something is active) ──
+                        // ── privacy: a small glass pill (icons + the apps using them), only while something is active ──
                         Item {
                             id: ccPriv
                             visible: root.privacyAny && root.barWidgetEnabled("privacy")
                             width: parent.width
-                            height: visible ? root.privacyRows.length * 46 + 14 : 0
-                            CCTile { anchors.fill: parent; t: pal; gx: ccg; radius: 22 }
-                            Column {
-                                x: 8; y: 7
-                                width: parent.width - 16
-                                Repeater {
-                                    model: root.privacyRows
-                                    delegate: Item {
-                                        id: pr
-                                        required property var modelData
-                                        width: parent.width; height: 46
-                                        Rectangle {
-                                            x: 4
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: 30; height: 30; radius: 15
-                                            color: pr.modelData.c
-                                            Glyph { anchors.centerIn: parent; width: 15; height: 15; kind: pr.modelData.glyph; color: "white" }
-                                        }
-                                        Column {
-                                            x: 44
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width - 44 - (pr.modelData.k === "rec" ? 70 : 6)
-                                            spacing: 1
-                                            Text { width: parent.width; elide: Text.ElideRight; text: pr.modelData.title; color: pal.fg; font.family: pal.fam; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                            Text { width: parent.width; elide: Text.ElideRight; text: pr.modelData.sub; color: pal.fg2; font.family: pal.fam; font.pixelSize: 11 }
-                                        }
-                                        Rectangle {
-                                            visible: pr.modelData.k === "rec"
-                                            anchors.right: parent.right; anchors.rightMargin: 4
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: 54; height: 24; radius: 12
-                                            color: "#FF453A"
-                                            Text { anchors.centerIn: parent; text: "Stop"; color: "white"; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold }
-                                            MouseArea { anchors.fill: parent; onClicked: root.toggleRecording() }
+                            height: visible ? 32 : 0
+                            // one icon per kind of use (screen sharing and recording share the purple one)
+                            readonly property var icons: {
+                                var a = [], seen = {};
+                                for (var i = 0; i < root.privacyRows.length; i++) {
+                                    var r = root.privacyRows[i];
+                                    if (seen[r.c + r.glyph]) continue;
+                                    seen[r.c + r.glyph] = true;
+                                    a.push({ glyph: r.glyph, c: r.c });
+                                }
+                                return a;
+                            }
+                            // every app using the mic / camera / screen, once each
+                            readonly property string names: {
+                                var all = root.privacy.mic.concat(root.privacy.cam).concat(root.privacy.share), out = [];
+                                for (var i = 0; i < all.length; i++) if (out.indexOf(all[i]) < 0) out.push(all[i]);
+                                if (out.length === 0 && root.recording) return "Screen Recording " + root.recTime();
+                                return out.join(", ");
+                            }
+                            Item {
+                                id: privPill
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                height: 32
+                                width: Math.min(parent.width, 14 + privIcons.width + 8 + privText.implicitWidth + (root.recording ? 8 + 44 : 0) + 14)
+                                CCTile { anchors.fill: parent; t: ccPal; gx: ccg; radius: 16 }
+                                Row {
+                                    id: privIcons
+                                    x: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    Repeater {
+                                        model: ccPriv.icons
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            width: 18; height: 18; radius: 9
+                                            color: modelData.c
+                                            Glyph { anchors.centerIn: parent; width: 10; height: 10; kind: modelData.glyph; color: "white" }
                                         }
                                     }
+                                }
+                                Text {
+                                    id: privText
+                                    x: 14 + privIcons.width + 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.min(implicitWidth, privPill.width - x - 14 - (root.recording ? 52 : 0))
+                                    elide: Text.ElideRight
+                                    text: ccPriv.names
+                                    color: ccPal.fg
+                                    font.family: ccPal.fam; font.pixelSize: 13; font.weight: Font.Medium
+                                }
+                                // while recording, the pill also carries the Stop button
+                                Rectangle {
+                                    visible: root.recording
+                                    anchors.right: parent.right; anchors.rightMargin: 7
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 44; height: 20; radius: 10
+                                    color: "#FF453A"
+                                    Text { anchors.centerIn: parent; text: "Stop"; color: "white"; font.family: ccPal.fam; font.pixelSize: 11; font.weight: Font.DemiBold }
+                                    MouseArea { anchors.fill: parent; onClicked: root.toggleRecording() }
                                 }
                             }
                         }
@@ -6703,15 +7572,15 @@ Scope {
                         Item {
                             id: ccGrid
                             width: parent.width
-                            height: Math.max(66, root.ccPlan.rows * 76 - 10)
-                            readonly property real cw: (width - 30) / 4
-                            readonly property real chh: 66
+                            height: Math.max(66, root.ccPlan.total)
+                            readonly property real cw: (width - 3 * root.ccGap) / 4
+                            readonly property real chh: root.ccCellH
 
                             Text {
                                 visible: root.ccPlan.items.length === 0
                                 anchors.centerIn: parent
-                                text: "No controls. Use Edit Controls to add some."
-                                color: pal.fg2; font.family: pal.fam; font.pixelSize: 12
+                                text: I18n.tr("No controls. Use Edit Controls to add some.")
+                                color: ccPal.fg2; font.family: ccPal.fam; font.pixelSize: 12
                             }
 
                             Repeater {
@@ -6729,10 +7598,10 @@ Scope {
                                     property bool dragging: false
 
                                     visible: slot !== null
-                                    x: (slot ? slot.col * (ccGrid.cw + 10) : 0) + dx
-                                    y: (slot ? slot.row * (ccGrid.chh + 10) : 0) + dy
-                                    width: slot ? slot.w * ccGrid.cw + (slot.w - 1) * 10 : 0
-                                    height: slot ? slot.h * ccGrid.chh + (slot.h - 1) * 10 : 0
+                                    x: (slot ? slot.col * (ccGrid.cw + root.ccGap) : 0) + dx
+                                    y: (slot ? slot.y : 0) + dy
+                                    width: slot ? slot.w * ccGrid.cw + (slot.w - 1) * root.ccGap : 0
+                                    height: slot ? slot.hpx : 0
                                     z: dragging ? 100 : 0
                                     // stretch-and-settle, a touch later for each row / column (ColorOS 17)
                                     property real ap: 1
@@ -6752,8 +7621,12 @@ Scope {
                                     Behavior on y { enabled: !ct.dragging; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                     Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
 
+                                    // one-cell controls (the circle buttons) are drawn as a smaller circle centred in their grid cell
+                                    readonly property bool small: slot !== null && slot.w === 1 && slot.h === 1
                                     Loader {
-                                        anchors.fill: parent
+                                        anchors.centerIn: parent
+                                        width: ct.small ? 63 : ct.width
+                                        height: ct.small ? 63 : ct.height
                                         active: ct.slot !== null
                                         sourceComponent: cc.ccComp(ct.modelData.id)
                                     }
@@ -6794,9 +7667,9 @@ Scope {
                                         z: 60
                                         x: -5; y: -5
                                         width: 22; height: 22; radius: 11
-                                        color: pal.dark ? "#636366" : "#8E8E93"
+                                        color: ccPal.dark ? "#636366" : "#8E8E93"
                                         border.width: 1.5
-                                        border.color: pal.dark ? Qt.rgba(1, 1, 1, 0.35) : "white"
+                                        border.color: ccPal.dark ? Qt.rgba(1, 1, 1, 0.35) : "white"
                                         Rectangle { anchors.centerIn: parent; width: 10; height: 2; radius: 1; color: "white" }
                                         MouseArea {
                                             anchors.fill: parent; anchors.margins: -3
@@ -6814,9 +7687,9 @@ Scope {
                             spacing: 8
                             Text {
                                 leftPadding: 4
-                                text: "Add Controls"
-                                color: pal.fg2
-                                font.family: pal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
+                                text: I18n.tr("Add Controls")
+                                color: ccPal.fg2
+                                font.family: ccPal.fam; font.pixelSize: 12; font.weight: Font.DemiBold
                             }
                             Flow {
                                 width: parent.width
@@ -6827,7 +7700,7 @@ Scope {
                                     delegate: CCTile {
                                         id: chip
                                         required property var modelData
-                                        t: pal; gx: ccg
+                                        t: ccPal; gx: ccg
                                         radius: 17
                                         width: chipRow.implicitWidth + 24; height: 34
                                         Row {
@@ -6843,12 +7716,12 @@ Scope {
                                             Glyph {
                                                 width: 16; height: 16
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                kind: chip.modelData.glyph; color: pal.fg
+                                                kind: chip.modelData.glyph; color: ccPal.fg
                                             }
                                             Text {
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: chip.modelData.label
-                                                color: pal.fg; font.family: pal.fam; font.pixelSize: 12
+                                                text: I18n.tr(chip.modelData.label)
+                                                color: ccPal.fg; font.family: ccPal.fam; font.pixelSize: 12
                                             }
                                         }
                                         MouseArea { anchors.fill: parent; onClicked: root.ccAdd(chip.modelData.id) }
@@ -6879,13 +7752,13 @@ Scope {
                                 spacing: 8
                                 CCPill {
                                     visible: ui.ccEdit
-                                    t: pal; gx: ccg
-                                    text: "Reset"
+                                    t: ccPal; gx: ccg
+                                    text: I18n.tr("Reset")
                                     onClicked: root.ccControls = root.ccDefault.slice()
                                 }
                                 CCPill {
-                                    t: pal; gx: ccg
-                                    text: ui.ccEdit ? "Done" : "Edit Controls"
+                                    t: ccPal; gx: ccg
+                                    text: ui.ccEdit ? I18n.tr("Done") : I18n.tr("Edit Controls")
                                     strong: ui.ccEdit
                                     onClicked: ui.ccEdit = !ui.ccEdit
                                 }
@@ -6980,6 +7853,16 @@ Scope {
                         blur: swPanel.style === "frosted" ? 30 : root.switcherBlur
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        rimTint: 1
+                        ringW: 1.4
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        visible: swPanel.style !== "opaque"
+                        cornerR: 26
+                        dark: root.effDark
+                        tint: root.menuBorderColor
                     }
                     Rectangle {
                         anchors.fill: parent
@@ -7131,6 +8014,15 @@ Scope {
                         blur: root.wpBlur
                         debug: root.glassDebug
                         onShaderError: root.glassState = "failed"
+                        rimTint: 1
+                        ringW: 1.4
+                    }
+                    MenuBorder {
+                        z: 2
+                        anchors.fill: parent
+                        cornerR: 28
+                        dark: root.effDark
+                        tint: root.menuBorderColor
                     }
 
                     // ── header: title, folder path, Choose… ──
@@ -7141,7 +8033,7 @@ Scope {
                         Text {
                             id: wpTitle
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Wallpapers"
+                            text: I18n.tr("Wallpapers")
                             color: pal.fg
                             font.family: pal.fam; font.pixelSize: 15; font.weight: Font.DemiBold
                         }
@@ -7151,7 +8043,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 84; height: 30; radius: 10
                             color: wpChooseMa.containsMouse ? pal.btnHover : pal.btnOff
-                            Text { anchors.centerIn: parent; text: "Choose\u2026"; color: pal.fg; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.Medium }
+                            Text { anchors.centerIn: parent; text: I18n.tr("Choose\u2026"); color: pal.fg; font.family: pal.fam; font.pixelSize: 12; font.weight: Font.Medium }
                             MouseArea { id: wpChooseMa; anchors.fill: parent; hoverEnabled: true; onClicked: root.wpPickFolder() }
                         }
                         Rectangle {
@@ -7205,7 +8097,7 @@ Scope {
                             Text {
                                 visible: wpSearch.text === "" && !wpSearch.activeFocus
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Search"
+                                text: I18n.tr("Search")
                                 color: pal.fg3
                                 font.family: pal.fam; font.pixelSize: 12
                             }
@@ -7340,7 +8232,7 @@ Scope {
                                         Text {
                                             id: wcBadge
                                             anchors.centerIn: parent
-                                            text: "\u25B6  Animated"
+                                            text: I18n.tr("\u25B6  Animated")
                                             color: "white"
                                             font.family: pal.fam; font.pixelSize: 10; font.weight: Font.DemiBold
                                         }
@@ -7434,8 +8326,8 @@ Scope {
                         width: parent.width - 80
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
-                        text: root.wpQuery !== "" ? "No wallpapers match \u201c" + root.wpQuery + "\u201d"
-                              : "No images in " + root.wpDirEff + "\nDrop some in, or pick another folder with Choose\u2026"
+                        text: root.wpQuery !== "" ? I18n.tr("No wallpapers match \u201c") + root.wpQuery + "\u201d"
+                              : I18n.tr("No images in ") + root.wpDirEff + I18n.tr("\nDrop some in, or pick another folder with Choose\u2026")
                         color: pal.fg2
                         font.family: pal.fam; font.pixelSize: 13
                     }
@@ -7499,7 +8391,7 @@ Scope {
                     }
                     Rectangle {
                         anchors.fill: parent; radius: 14
-                        color: root.darkMode ? Qt.rgba(0.16, 0.16, 0.18, 0.92) : Qt.rgba(0.97, 0.97, 0.98, 0.95)
+                        color: root.panelDarkMode ? Qt.rgba(0.16, 0.16, 0.18, 0.92) : Qt.rgba(0.97, 0.97, 0.98, 0.95)
                         border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.18)
                     }
                     Image {
@@ -7513,7 +8405,7 @@ Scope {
                         anchors.fill: parent; anchors.margins: 12
                         text: clipGhost.en ? clipGhost.en.text : ""
                         wrapMode: Text.Wrap; elide: Text.ElideRight; maximumLineCount: 2
-                        color: root.darkMode ? "white" : "#1d1d1f"; font.family: root.fontFamily; font.pixelSize: 13
+                        color: root.panelDarkMode ? "white" : "#1d1d1f"; font.family: root.fontFamily; font.pixelSize: 13
                     }
                     SequentialAnimation {
                         id: wiggleClip; loops: Animation.Infinite
@@ -7602,13 +8494,16 @@ Scope {
                     frame: spotRoot
                     liquid: root.liquidActive
                     shaderUrl: root.glassShaderUrl
-                    dark: root.effDark
+                    dark: root.panelDarkMode
                     tint: root.glassOpacity
-                    strength: root.glassLiquid * 0.6        // Spotlight: gentler refraction than the Dock
-                    rim: root.glassRim * 0.4                 // and a subtle rim (no heavy outline)
+                    strength: root.glassLiquid               // full refraction, like the Dock / Control Center
+                    rim: root.glassRim                       // same wallpaper-coloured rim + border line as the top-bar menus
+                    rimTint: 1
+                    ringW: 0.9
+                    whiteEdge: false
                     grain: root.glassGrain
-                    blur: root.glassBlur
-                    blurMul: 12.0                   // Spotlight: strong smooth blur (two stacked Gaussian passes); lower to soften, raise to blur more
+                    blur: 15                                // Spotlight has its own blur: it ignores the global blur slider
+                    blurMul: 10.0                   // strong smooth blur (two stacked Gaussian passes); lower to see more refraction, raise to frost more
                     debug: root.glassDebug
                     onFailed: root.glassState = "failed"
                 }
@@ -7623,7 +8518,7 @@ Scope {
                     x: Math.round((spotRoot.width - width) / 2)
                     // the search pill sits a little above the vertical centre of the screen (0.4 of the height; 0.5 = dead centre); the Applications panel centres itself instead
                     y: Math.round(spotRoot.height * 0.4 - (ui.spFull ? curPanel.height / 2 : 24))
-                    Behavior on y { enabled: spot.vis > 0.99; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                    Behavior on y { enabled: spot.vis > 0.99; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     // opens with a springy pop; dismiss: quick fade + shrink
                     property real vis: 0
                     opacity: vis
@@ -7639,15 +8534,15 @@ Scope {
                         Transition {
                             from: ""; to: "open"
                             ParallelAnimation {
-                                NumberAnimation { property: "vis"; duration: 520; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; duration: ui.spCalm ? 460 : 580; easing.type: Easing.OutQuint }
+                                NumberAnimation { property: "vis"; duration: 260; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; duration: ui.spCalm ? 240 : 300; easing.type: Easing.OutQuint }
                             }
                         },
                         Transition {
                             from: "open"; to: ""
                             ParallelAnimation {
-                                NumberAnimation { property: "vis"; duration: 400; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; to: 0.95; duration: 400; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "vis"; duration: 190; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; to: 0.95; duration: 190; easing.type: Easing.OutCubic }
                             }
                         }
                     ]
@@ -7665,24 +8560,20 @@ Scope {
                         spacing: 12
                         opacity: !ui.spFull ? 1 : 0
                         visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                         Item {
                             id: spPill
                             width: spot.width - 5 * 60
                             height: 48
-                            GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 18; strengthMul: 0.7; shadowAmt: 0.18 }
+                            GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 22; strengthMul: 1.0; shadowAmt: 0.08 }
                             HoverHandler { id: pillHover }
-                            ContourGlow { cornerR: 24; hovered: pillHover.hovered; at: pillHover.point.position; glowColor: root.darkMode ? "white" : root.accent }
-                            // very thin outline
-                            Rectangle {
-                                anchors.fill: parent; radius: 24; color: "transparent"; antialiasing: true
-                                border.width: 1; border.color: root.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.11)
-                            }
+                            ContourGlow { cornerR: 24; hovered: pillHover.hovered; at: pillHover.point.position; glowColor: root.panelDarkMode ? "white" : root.accent }
+                            MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
                             Glyph {
                                 x: 18; anchors.verticalCenter: parent.verticalCenter
                                 width: 18; height: 18
-                                kind: "search"; color: pal.fg2
+                                kind: "search"; color: panelPal.fg2
                             }
                             // placeholder: blur-morphs between "Spotlight Search" and the hovered button's name
                             MorphText {
@@ -7693,9 +8584,9 @@ Scope {
                                 animateWidth: false
                                 duration: 460
                                 blurMax: 48
-                                text: ui.spHoverLabel !== "" ? ui.spHoverLabel : "Spotlight Search"
-                                color: pal.fg2
-                                font.family: pal.fam; font.pixelSize: 17
+                                text: ui.spHoverLabel !== "" ? ui.spHoverLabel : I18n.tr("Spotlight Search")
+                                color: panelPal.fg2
+                                font.family: panelPal.fam; font.pixelSize: 17
                                 elide: Text.ElideRight
                             }
                             TextInput {
@@ -7704,10 +8595,10 @@ Scope {
                                 width: parent.width - 46 - 18
                                 anchors.verticalCenter: parent.verticalCenter
                                 clip: true
-                                color: pal.fg
+                                color: panelPal.fg
                                 selectionColor: root.accent
                                 selectedTextColor: "white"
-                                font.family: pal.fam; font.pixelSize: 17
+                                font.family: panelPal.fam; font.pixelSize: 17
                                 horizontalAlignment: /[\u0590-\u08ff]/.test(text) ? Text.AlignRight : Text.AlignLeft
                                 onTextChanged: { if (!ui.spFull) { ui.spQuery = text; ui.spSel = 0; ui.armed = ""; if (/^(file|find)\s+/i.test(text)) root.updateFileSearch(text.replace(/^(file|find)\s+/i, "").trim()); } }
                                 Keys.onPressed: event => ui.spKey(event)
@@ -7715,8 +8606,8 @@ Scope {
                         }
                         Repeater {
                             model: [
-                                { k: "appstore", id: "apps", label: "Apps" }, { k: "folder", id: "files", label: "Files" },
-                                { k: "layers", id: "actions", label: "Actions" }, { k: "clipboard", id: "clip", label: "Clipboard" }, { k: "smile", id: "emoji", label: "Emoji" }
+                                { k: "appstore", id: "apps", label: I18n.tr("Apps") }, { k: "folder", id: "files", label: I18n.tr("Files") },
+                                { k: "layers", id: "actions", label: I18n.tr("Actions") }, { k: "clipboard", id: "clip", label: I18n.tr("Clipboard") }, { k: "smile", id: "emoji", label: I18n.tr("Emoji") }
                             ]
                             delegate: CCBtn {
                                 required property var modelData
@@ -7735,12 +8626,8 @@ Scope {
                                         else if (ui.spHoverLabel === modelData.label) spHoverClear.restart();
                                     }
                                 }
-                                ContourGlow { cornerR: 24; hovered: btnHover.hovered; at: btnHover.point.position; glowColor: root.darkMode ? "white" : root.accent }
-                                // very thin outline
-                                Rectangle {
-                                    anchors.fill: parent; radius: width / 2; color: "transparent"; antialiasing: true
-                                    border.width: 1; border.color: root.darkMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.11)
-                                }
+                                ContourGlow { cornerR: 24; hovered: btnHover.hovered; at: btnHover.point.position; glowColor: root.panelDarkMode ? "white" : root.accent }
+                                MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: width / 2; dark: root.panelDarkMode; tint: root.menuBorderColor }
                                 onClicked: {
                                     if (modelData.id === "apps") ui.spSetMode(ui.spMode === "apps" ? "home" : "apps");
                                     else if (modelData.id === "actions") ui.spSetMode(ui.spMode === "actions" ? "home" : "actions");
@@ -7766,7 +8653,8 @@ Scope {
                         Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
                         height: (items.length > 0 ? items.length : keep) * 46 + 16
                         Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 26; thickness: 22; strengthMul: 0.75; shadowAmt: 0.22 }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 26; thickness: 26; strengthMul: 1.0; shadowAmt: 0.10 }
+                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 26; dark: root.panelDarkMode; tint: root.menuBorderColor }
                         Item {
                             x: 8; y: 8
                             width: parent.width - 16
@@ -7811,7 +8699,7 @@ Scope {
                                             anchors.centerIn: parent
                                             width: 20; height: 20
                                             kind: (rr.modelData && rr.modelData.glyph) ? rr.modelData.glyph : ""
-                                            color: rr.sel ? "white" : pal.fg
+                                            color: rr.sel ? "white" : panelPal.fg
                                         }
                                     }
                                     Text {
@@ -7819,17 +8707,17 @@ Scope {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width - 54 - 140
                                         elide: Text.ElideRight
-                                        text: rr.armedNow ? "Press Return again to confirm" : (rr.modelData ? rr.modelData.title : "")
-                                        color: rr.sel ? "white" : pal.fg
-                                        font.family: pal.fam; font.pixelSize: 14
+                                        text: rr.armedNow ? I18n.tr("Press Return again to confirm") : (rr.modelData ? rr.modelData.title : "")
+                                        color: rr.sel ? "white" : panelPal.fg
+                                        font.family: panelPal.fam; font.pixelSize: 14
                                     }
                                     Text {
                                         anchors.right: parent.right
                                         anchors.rightMargin: 16
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: rr.modelData ? rr.modelData.sub : ""
-                                        color: rr.sel ? Qt.rgba(1, 1, 1, 0.8) : pal.fg2
-                                        font.family: pal.fam; font.pixelSize: 12
+                                        color: rr.sel ? Qt.rgba(1, 1, 1, 0.8) : panelPal.fg2
+                                        font.family: panelPal.fam; font.pixelSize: 12
                                     }
                                     MouseArea {
                                         anchors.fill: parent
@@ -7865,7 +8753,8 @@ Scope {
                             : (ui.spQuery.trim() === "" && !root.clipLoading ? "Copy some text or an image and it will show up here" : ""))
                         height: 64 + (items.length > 0 ? shown * rowH + 14 : 118)
                         Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 30; strengthMul: 0.85; shadowAmt: 0.5 }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: clipHeader
@@ -7883,9 +8772,9 @@ Scope {
                                 id: clipLabel
                                 x: 46
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Clipboard"
-                                color: pal.fg
-                                font.family: pal.fam; font.pixelSize: 24; font.weight: Font.Medium
+                                text: I18n.tr("Clipboard")
+                                color: panelPal.fg
+                                font.family: panelPal.fam; font.pixelSize: 24; font.weight: Font.Medium
                             }
                             TextInput {
                                 id: clipInput
@@ -7893,10 +8782,10 @@ Scope {
                                 width: parent.width - x - 48
                                 anchors.verticalCenter: parent.verticalCenter
                                 clip: true
-                                color: pal.fg
+                                color: panelPal.fg
                                 selectionColor: root.accent
                                 selectedTextColor: "white"
-                                font.family: pal.fam; font.pixelSize: 24
+                                font.family: panelPal.fam; font.pixelSize: 24
                                 onTextChanged: { if (ui.spMode === "clip") { ui.spQuery = text; ui.spSel = 0; } }
                                 Keys.onPressed: event => ui.spKey(event)
                             }
@@ -7952,12 +8841,12 @@ Scope {
                                         visible: cr.modelData.kind === "text" || cr.modelData.kind === "url"
                                         anchors.fill: parent
                                         radius: 10
-                                        color: cr.sel ? Qt.rgba(1, 1, 1, 0.22) : (root.darkMode ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.06))
+                                        color: cr.sel ? Qt.rgba(1, 1, 1, 0.22) : (root.panelDarkMode ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.06))
                                         Glyph {
                                             anchors.centerIn: parent
                                             width: 20; height: 20
                                             kind: cr.modelData.kind === "url" ? "link" : "doc"
-                                            color: cr.sel ? "white" : pal.fg2
+                                            color: cr.sel ? "white" : panelPal.fg2
                                         }
                                     }
                                     Rectangle {
@@ -7970,7 +8859,7 @@ Scope {
                                     Item {
                                         visible: cr.modelData.kind === "image"
                                         anchors.fill: parent
-                                        Rectangle { anchors.fill: parent; radius: 10; color: root.darkMode ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.06) }
+                                        Rectangle { anchors.fill: parent; radius: 10; color: root.panelDarkMode ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(0, 0, 0, 0.06) }
                                         Image {
                                             anchors.fill: parent
                                             source: cr.modelData.kind === "image" ? cr.modelData.thumb : ""
@@ -7999,16 +8888,16 @@ Scope {
                                     width: parent.width - 62 - 56
                                     elide: Text.ElideRight
                                     text: cr.modelData ? cr.modelData.title : ""
-                                    color: cr.sel ? "white" : pal.fg
-                                    font.family: pal.fam; font.pixelSize: 14
+                                    color: cr.sel ? "white" : panelPal.fg
+                                    font.family: panelPal.fam; font.pixelSize: 14
                                 }
                                 Text {
                                     x: 62; y: 31
                                     width: parent.width - 62 - 56
                                     elide: Text.ElideRight
                                     text: cr.modelData ? cr.modelData.sub : ""
-                                    color: cr.sel ? Qt.rgba(1, 1, 1, 0.8) : pal.fg2
-                                    font.family: pal.fam; font.pixelSize: 12
+                                    color: cr.sel ? Qt.rgba(1, 1, 1, 0.8) : panelPal.fg2
+                                    font.family: panelPal.fam; font.pixelSize: 12
                                 }
                                 Glyph {
                                     visible: cr.sel
@@ -8054,16 +8943,16 @@ Scope {
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
                                 text: clipPanel.emptyTitle
-                                color: pal.fg
-                                font.family: pal.fam; font.pixelSize: 15; font.weight: Font.Medium
+                                color: panelPal.fg
+                                font.family: panelPal.fam; font.pixelSize: 15; font.weight: Font.Medium
                             }
                             Text {
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
                                 text: clipPanel.emptySub
-                                color: pal.fg2
-                                font.family: pal.fam; font.pixelSize: 12
+                                color: panelPal.fg2
+                                font.family: panelPal.fam; font.pixelSize: 12
                             }
                         }
 
@@ -8077,7 +8966,8 @@ Scope {
                             y: 58
                             width: 250
                             height: 3 * 40 + 12
-                            GGlass { anchors.fill: parent; gx: spg; cornerR: 20; thickness: 22; strengthMul: 0.8; shadowAmt: 0.6 }
+                            GGlass { anchors.fill: parent; gx: spg; cornerR: 20; thickness: 26; strengthMul: 1.0; shadowAmt: 0.26 }
+                            MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 20; dark: root.panelDarkMode; tint: root.menuBorderColor }
                             Column {
                                 x: 6; y: 6
                                 width: parent.width - 12
@@ -8098,16 +8988,16 @@ Scope {
                                             visible: cm.modelData === "auto" && root.clipAutoPaste
                                             x: 12; anchors.verticalCenter: parent.verticalCenter
                                             width: 16; height: 16
-                                            kind: "check"; color: cmMa.containsMouse ? "white" : pal.fg
+                                            kind: "check"; color: cmMa.containsMouse ? "white" : panelPal.fg
                                         }
                                         Text {
                                             x: 38
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: cm.modelData === "auto" ? "Paste Automatically"
+                                            text: cm.modelData === "auto" ? I18n.tr("Paste Automatically")
                                                   : (cm.modelData === "del" ? "Delete Selected"
                                                   : (cm.armedNow ? "Click again to confirm" : "Clear History"))
-                                            color: cmMa.containsMouse ? "white" : ((cm.modelData === "clear") ? "#FF453A" : pal.fg)
-                                            font.family: pal.fam; font.pixelSize: 14
+                                            color: cmMa.containsMouse ? "white" : ((cm.modelData === "clear") ? "#FF453A" : panelPal.fg)
+                                            font.family: panelPal.fam; font.pixelSize: 14
                                         }
                                         MouseArea {
                                             id: cmMa
@@ -8146,7 +9036,8 @@ Scope {
                         readonly property var items: ui.spMode === "emoji" ? ui.spResults : []
                         readonly property var cur: items[Math.min(ui.spSel, items.length - 1)]
                         height: 64 + 42 + gridRows * cell + 46
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 30; strengthMul: 0.85; shadowAmt: 0.5 }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             x: 20
@@ -8163,9 +9054,9 @@ Scope {
                                 id: emojiLabel
                                 x: 46
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Emoji"
-                                color: pal.fg
-                                font.family: pal.fam; font.pixelSize: 24; font.weight: Font.Medium
+                                text: I18n.tr("Emoji")
+                                color: panelPal.fg
+                                font.family: panelPal.fam; font.pixelSize: 24; font.weight: Font.Medium
                             }
                             TextInput {
                                 id: emojiInput
@@ -8173,10 +9064,10 @@ Scope {
                                 width: parent.width - x
                                 anchors.verticalCenter: parent.verticalCenter
                                 clip: true
-                                color: pal.fg
+                                color: panelPal.fg
                                 selectionColor: root.accent
                                 selectedTextColor: "white"
-                                font.family: pal.fam; font.pixelSize: 24
+                                font.family: panelPal.fam; font.pixelSize: 24
                                 onTextChanged: { if (ui.spMode === "emoji") { ui.spQuery = text; ui.spSel = 0; } }
                                 Keys.onPressed: event => ui.spKey(event)
                             }
@@ -8270,32 +9161,32 @@ Scope {
                             height: emojiPanel.gridRows * emojiPanel.cell
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
-                            text: ui.spQuery.trim() !== "" ? "No Results" : "No recently used emoji"
-                            color: pal.fg2
-                            font.family: pal.fam; font.pixelSize: 14
+                            text: ui.spQuery.trim() !== "" ? I18n.tr("No Results") : I18n.tr("No recently used emoji")
+                            color: panelPal.fg2
+                            font.family: panelPal.fam; font.pixelSize: 14
                         }
 
                         // footer: name of the highlighted emoji
                         Item {
                             x: 20; y: parent.height - 46
                             width: parent.width - 40; height: 46
-                            Rectangle { width: parent.width; height: 1; color: pal.sep }
+                            Rectangle { width: parent.width; height: 1; color: panelPal.sep }
                             Text {
                                 x: 4
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 180
                                 elide: Text.ElideRight
                                 text: emojiPanel.cur ? (emojiPanel.cur[0] + "  " + emojiPanel.cur[1]) : ""
-                                color: pal.fg2
-                                font.family: pal.fam; font.pixelSize: 13
+                                color: panelPal.fg2
+                                font.family: panelPal.fam; font.pixelSize: 13
                             }
                             Text {
                                 anchors.right: parent.right
                                 anchors.rightMargin: 4
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: root.clipAutoPaste ? "Return to insert" : "Return to copy"
-                                color: pal.fg3
-                                font.family: pal.fam; font.pixelSize: 12
+                                text: root.clipAutoPaste ? I18n.tr("Return to insert") : I18n.tr("Return to copy")
+                                color: panelPal.fg3
+                                font.family: panelPal.fam; font.pixelSize: 12
                             }
                         }
                     }
@@ -8311,7 +9202,8 @@ Scope {
                         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                         width: spot.width
                         height: Math.min(64 + appsCol.height + 14, 520)
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 30; strengthMul: 0.85; shadowAmt: 0.5 }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: appsHeader
@@ -8321,15 +9213,15 @@ Scope {
                             Glyph {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 24; height: 24
-                                kind: "appstore"; color: pal.fg2
+                                kind: "appstore"; color: panelPal.fg2
                             }
                             Text {
                                 x: 40 + 3
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: appsInput.text === ""
-                                text: "Applications"
-                                color: pal.fg3
-                                font.family: pal.fam; font.pixelSize: 24
+                                text: I18n.tr("Applications")
+                                color: panelPal.fg3
+                                font.family: panelPal.fam; font.pixelSize: 24
                             }
                             TextInput {
                                 id: appsInput
@@ -8337,10 +9229,10 @@ Scope {
                                 width: parent.width - 40 - 48
                                 anchors.verticalCenter: parent.verticalCenter
                                 clip: true
-                                color: pal.fg
+                                color: panelPal.fg
                                 selectionColor: root.accent
                                 selectedTextColor: "white"
-                                font.family: pal.fam; font.pixelSize: 24
+                                font.family: panelPal.fam; font.pixelSize: 24
                                 onTextChanged: { if (ui.spMode === "apps") { ui.spQuery = text; ui.spSel = 0; } }
                                 Keys.onPressed: event => ui.spKey(event)
                             }
@@ -8381,23 +9273,23 @@ Scope {
                                         readonly property int shown: expanded ? modelData.apps.length : Math.min(5, modelData.apps.length)
                                         width: appsCol.width
 
-                                        Rectangle { width: parent.width; height: 1; color: pal.sep }
+                                        Rectangle { width: parent.width; height: 1; color: panelPal.sep }
                                         Item {
                                             width: parent.width
                                             height: 38
                                             Text {
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: sec.modelData.name
-                                                color: pal.fg
-                                                font.family: pal.fam; font.pixelSize: 13; font.weight: Font.Bold
+                                                text: I18n.tr(sec.modelData.name)
+                                                color: panelPal.fg
+                                                font.family: panelPal.fam; font.pixelSize: 13; font.weight: Font.Bold
                                             }
                                             Text {
                                                 visible: !sec.searching && sec.modelData.apps.length > 5
                                                 anchors.right: parent.right
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: sec.expanded ? "Show Less" : "Show More"
+                                                text: sec.expanded ? I18n.tr("Show Less") : I18n.tr("Show More")
                                                 color: root.accent
-                                                font.family: pal.fam; font.pixelSize: 12; font.weight: Font.Bold
+                                                font.family: panelPal.fam; font.pixelSize: 12; font.weight: Font.Bold
                                                 MouseArea {
                                                     anchors.fill: parent
                                                     anchors.margins: -6
@@ -8419,7 +9311,7 @@ Scope {
                                                         anchors.fill: parent
                                                         anchors.margins: 2
                                                         radius: 16
-                                                        color: cma.containsMouse ? pal.hover : "transparent"
+                                                        color: cma.containsMouse ? panelPal.hover : "transparent"
                                                     }
                                                     Image {
                                                         anchors.horizontalCenter: parent.horizontalCenter
@@ -8438,8 +9330,8 @@ Scope {
                                                         horizontalAlignment: Text.AlignHCenter
                                                         elide: Text.ElideRight
                                                         text: cell.e.name
-                                                        color: pal.fg
-                                                        font.family: pal.fam; font.pixelSize: 12
+                                                        color: panelPal.fg
+                                                        font.family: panelPal.fam; font.pixelSize: 12
                                                     }
                                                     MouseArea {
                                                         id: cma
@@ -8459,9 +9351,9 @@ Scope {
                                     height: 90
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
-                                    text: "No Results"
-                                    color: pal.fg2
-                                    font.family: pal.fam; font.pixelSize: 14
+                                    text: I18n.tr("No Results")
+                                    color: panelPal.fg2
+                                    font.family: panelPal.fam; font.pixelSize: 14
                                 }
                             }
                         }

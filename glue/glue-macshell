@@ -61,6 +61,9 @@ wallpaper() {
 	if ! awww query 2>/dev/null | grep -q 'image:' && [ -r "$WALLPAPER" ]; then
 		awww img "$WALLPAPER" --transition-type none >/dev/null 2>&1
 	fi
+	# a video wallpaper is played again from the saved choice
+	[ -f "$HOME/.config/macshell/wallpaper-video" ] &&
+		setsid "$MACSHELL_SCRIPTS/macshell-setwall.sh" --restore >/dev/null 2>&1 < /dev/null 9>&- &
 }
 
 case "${1:-shell}" in
